@@ -70,11 +70,21 @@ def upload_certificado(
         valido_de = cert.not_valid_before.replace(tzinfo=_tz.utc)
         valido_ate = cert.not_valid_after.replace(tzinfo=_tz.utc)
 
-    master_key = settings.vault_master_key_bytes
+    try:
+        master_key = settings.vault_master_key_bytes
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"VAULT_MASTER_KEY inválida: {e}")
+
+    try:
+        pfx_enc = encrypt_bytes(pfx_bytes, master_key)
+        senha_enc = encrypt_bytes(senha_bytes, master_key)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro na criptografia: {e}")
+
     certificado = Certificado(
         empresa_id=empresa_id,
-        pfx_cifrado=encrypt_bytes(pfx_bytes, master_key),
-        senha_cifrada=encrypt_bytes(senha_bytes, master_key),
+        pfx_cifrado=pfx_enc,
+        senha_cifrada=senha_enc,
         fingerprint=fingerprint,
         valido_de=valido_de,
         valido_ate=valido_ate,

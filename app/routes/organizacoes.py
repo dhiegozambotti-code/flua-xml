@@ -35,6 +35,7 @@ class ApiKeyOut(BaseModel):
 class WebhookCreate(BaseModel):
     url: str
     eventos: str = "documento.capturado,empresa.bloqueada_656"
+    secret: Optional[str] = None
 
 
 class WebhookOut(BaseModel):
@@ -84,7 +85,7 @@ def revogar_api_key(org_id: str, key_id: str, db: Session = Depends(get_db)):
 
 @router.post("/{org_id}/webhooks", response_model=WebhookOut, status_code=201)
 def criar_webhook(org_id: str, body: WebhookCreate, db: Session = Depends(get_db)):
-    wh = WebhookConfig(organizacao_id=org_id, url=body.url, eventos=body.eventos)
+    wh = WebhookConfig(organizacao_id=org_id, url=body.url, eventos=body.eventos, secret=body.secret)
     db.add(wh)
     db.commit()
     db.refresh(wh)

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "flua-xml-admin",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd '/Users/dhiegozambotti/Library/CloudStorage/OneDrive-ZBS/ZBS - Documentos/ZBS/ERP/Flua XML/flua-xml' && POLLING_ENABLED=false .venv/bin/uvicorn app.main:app --port 8000"],
+      "port": 8000
+    }
+  ]
+}

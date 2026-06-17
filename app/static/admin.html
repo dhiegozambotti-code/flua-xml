@@ -8,13 +8,6 @@
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Barlow:wght@300;400;500;600&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg:        #050911;
-  --bg2:       #070d18;
-  --panel:     #0b1422;
-  --panel2:    #0f1c30;
-  --panel3:    #132038;
-  --line:      rgba(255,255,255,0.055);
-  --line2:     rgba(255,255,255,0.10);
   --teal:      #00c9a7;
   --teal-dim:  rgba(0,201,167,0.12);
   --teal-glow: rgba(0,201,167,0.06);
@@ -24,14 +17,48 @@
   --red-dim:   rgba(255,94,126,0.10);
   --blue:      #56cfe1;
   --blue-dim:  rgba(86,207,225,0.10);
-  --text:      #dce9f5;
-  --text2:     #7a9bb8;
-  --text3:     #3a5570;
   --mono:      'Fira Code', 'Cascadia Code', monospace;
   --cond:      'Barlow Condensed', sans-serif;
   --sans:      'Barlow', sans-serif;
   --r:         6px;
   --r2:        10px;
+}
+
+/* ── DARK (padrão) ── */
+:root, html[data-theme="dark"] {
+  --bg:    #050911;
+  --bg2:   #070d18;
+  --panel: #0b1422;
+  --panel2:#0f1c30;
+  --panel3:#132038;
+  --line:  rgba(255,255,255,0.055);
+  --line2: rgba(255,255,255,0.10);
+  --text:  #dce9f5;
+  --text2: #7a9bb8;
+  --text3: #3a5570;
+}
+
+/* ── LIGHT ── */
+html[data-theme="light"] {
+  --bg:    #f4f6fa;
+  --bg2:   #ffffff;
+  --panel: #ffffff;
+  --panel2:#f0f3f8;
+  --panel3:#e4e9f2;
+  --line:  rgba(0,0,0,0.07);
+  --line2: rgba(0,0,0,0.12);
+  --text:  #0f1e30;
+  --text2: #4a6480;
+  --text3: #9aafc4;
+  --teal:       #009e83;
+  --teal-dim:   rgba(0,158,131,0.10);
+  --teal-glow:  rgba(0,158,131,0.05);
+  --amber:      #c98a00;
+  --amber-dim:  rgba(201,138,0,0.10);
+  --red:        #d63a5a;
+  --red-dim:    rgba(214,58,90,0.08);
+  --blue:       #2d9fc5;
+  --blue-dim:   rgba(45,159,197,0.10);
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
@@ -549,6 +576,36 @@ tbody tr:hover td { background: var(--panel2); }
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--panel3); border-radius: 4px; }
+
+/* ═══════════════ THEME TOGGLE ═══════════════ */
+.theme-btn {
+  width: 28px; height: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--line2);
+  background: var(--panel2);
+  cursor: pointer;
+  padding: 0;
+  position: relative;
+  transition: background .2s, border-color .2s;
+  flex-shrink: 0;
+}
+.theme-btn::after {
+  content: '';
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--text3);
+  transition: transform .2s, background .2s;
+}
+html[data-theme="light"] .theme-btn {
+  background: var(--teal-dim);
+  border-color: rgba(0,158,131,.3);
+}
+html[data-theme="light"] .theme-btn::after {
+  transform: translateX(12px);
+  background: var(--teal);
+}
 </style>
 </head>
 <body>
@@ -591,9 +648,12 @@ tbody tr:hover td { background: var(--panel2); }
 
   <div class="s-foot">
     <span class="s-foot-ver">v0.3.0</span>
-    <div class="s-status">
-      <div class="dot" id="s-dot"></div>
-      <span id="s-lbl">—</span>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="s-status">
+        <div class="dot" id="s-dot"></div>
+        <span id="s-lbl">—</span>
+      </div>
+      <button class="theme-btn" id="theme-btn" onclick="toggleTheme()" title="Alternar tema"></button>
     </div>
   </div>
 </aside>
@@ -984,6 +1044,19 @@ async function loadSaude() {
 }
 
 const R={empresas:renderEmpresas,certificado:renderCertificado,distribuicao:renderDistribuicao,documentos:renderDocumentos,saude:renderSaude};
+
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('flua-theme', next);
+}
+
+(function initTheme() {
+  const saved = localStorage.getItem('flua-theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', saved);
+})();
+
 checkApi();
 setInterval(checkApi,30000);
 renderEmpresas();

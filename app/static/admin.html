@@ -92,13 +92,15 @@ body {
   align-items: center;
   gap: 9px;
 }
-.s-logo-diamond {
-  width: 28px;
-  height: 28px;
-  background: var(--teal);
-  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+.s-logo-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   flex-shrink: 0;
-  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #5b6ef5 0%, #7c4dff 100%);
 }
 .s-logo-name {
   font-family: var(--cond);
@@ -613,7 +615,11 @@ html[data-theme="light"] .theme-btn::after {
 <aside id="sidebar">
   <div class="s-logo">
     <div class="s-logo-mark">
-      <div class="s-logo-diamond"></div>
+      <div class="s-logo-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2L21 7V17L12 22L3 17V7L12 2Z" stroke="white" stroke-width="2" stroke-linejoin="round"/>
+        </svg>
+      </div>
       <div class="s-logo-name">FLUA <em>XML</em></div>
     </div>
     <div class="s-logo-sub">Gestão Fiscal · SEFAZ</div>

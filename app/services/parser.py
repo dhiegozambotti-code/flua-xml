@@ -34,6 +34,98 @@ def _txt(el: Any, xpath: str, ns: dict = _NS) -> Optional[str]:
     return found.text.strip() if found is not None and found.text else None
 
 
+def _parse_itens_nfe(inf: Any) -> list:
+    """Extrai lista de itens da NF-e com campos fiscais por item."""
+    itens = []
+    for det in inf.findall("nfe:det", _NS):
+        prod = det.find("nfe:prod", _NS)
+        imp = det.find("nfe:imposto", _NS)
+        if prod is None:
+            continue
+
+        def _imp_val(tag: str) -> Optional[str]:
+            if imp is None:
+                return None
+            el = imp.find(f".//{_NS['nfe'].join(['{', '}'])}{tag}", _NS)
+            if el is None:
+                el = imp.find(f"nfe:{tag}", _NS)
+            return el.text.strip() if el is not None and el.text else None
+
+        # ICMS — vICMS pode estar em vários grupos (ICMS00, ICMS10, ICMSSN102...)
+        v_icms = None
+        icms_grupo = imp.find(".//nfe:ICMS", _NS) if imp is not None else None
+        if icms_grupo is not None:
+            for child in icms_grupo:
+                val = _txt(child, "nfe:vICMS")
+                if val:
+                    v_icms = val
+                    break
+
+        # IPI
+        v_ipi = None
+        ipi = imp.find("nfe:IPI", _NS) if imp is not None else None
+        if ipi is not None:
+            for ipi_trib in ipi:
+                val = _txt(ipi_trib, "nfe:vIPI")
+                if val:
+                    v_ipi = val
+                    break
+
+        # PIS/COFINS
+        v_pis = None
+        pis_g = imp.find("nfe:PIS", _NS) if imp is not None else None
+        if pis_g is not None:
+            for pg in pis_g:
+                val = _txt(pg, "nfe:vPIS")
+                if val:
+                    v_pis = val
+                    break
+
+        v_cofins = None
+        cof_g = imp.find("nfe:COFINS", _NS) if imp is not None else None
+        if cof_g is not None:
+            for cg in cof_g:
+                val = _txt(cg, "nfe:vCOFINS")
+                if val:
+                    v_cofins = val
+                    break
+
+        itens.append({
+            "nitem": det.get("nItem"),
+            "cprod": _txt(prod, "nfe:cProd"),
+            "xprod": _txt(prod, "nfe:xProd"),
+            "ncm": _txt(prod, "nfe:NCM"),
+            "cfop": _txt(prod, "nfe:CFOP"),
+            "ucom": _txt(prod, "nfe:uCom"),
+            "qcom": _txt(prod, "nfe:qCom"),
+            "v_un_com": _txt(prod, "nfe:vUnCom"),
+            "v_prod": _txt(prod, "nfe:vProd"),
+            "v_frete": _txt(prod, "nfe:vFrete"),
+            "v_desc": _txt(prod, "nfe:vDesc"),
+            "v_icms": v_icms,
+            "v_ipi": v_ipi,
+            "v_pis": v_pis,
+            "v_cofins": v_cofins,
+            "gtin": _txt(prod, "nfe:cEAN"),
+        })
+    return itens
+
+
+def _parse_duplicatas_nfe(inf: Any) -> list:
+    """Extrai duplicatas (<cobr><dup>) para parcelamento do título a pagar."""
+    dups = []
+    cobr = inf.find("nfe:cobr", _NS)
+    if cobr is None:
+        return dups
+    for dup in cobr.findall("nfe:dup", _NS):
+        dups.append({
+            "ndup": _txt(dup, "nfe:nDup"),
+            "dvenc": _txt(dup, "nfe:dVenc"),
+            "vdup": _txt(dup, "nfe:vDup"),
+        })
+    return dups
+
+
 def _parse_proc_nfe(root: Any) -> Dict[str, Any]:
     nfe = root.find(".//nfe:NFe", _NS)
     inf = nfe.find("nfe:infNFe", _NS) if nfe is not None else None
@@ -44,6 +136,7 @@ def _parse_proc_nfe(root: Any) -> Dict[str, Any]:
     dest = inf.find("nfe:dest", _NS)
     ide = inf.find("nfe:ide", _NS)
     total = inf.find("nfe:total/nfe:ICMSTot", _NS)
+    ender_emit = emit.find("nfe:enderEmit", _NS) if emit is not None else None
 
     emit_cnpj = _txt(emit, "nfe:CNPJ") if emit is not None else None
     dest_cnpj = _txt(dest, "nfe:CNPJ") if dest is not None else None
@@ -65,11 +158,33 @@ def _parse_proc_nfe(root: Any) -> Dict[str, Any]:
     mod = _txt(ide, "nfe:mod") if ide is not None else None
     modelo_doc = "nfce" if mod == "65" else "nfe"
 
+    # Número e série extraídos do IDE (mais confiável que extrair da chave)
+    numero = _txt(ide, "nfe:nNF") if ide is not None else None
+    serie = _txt(ide, "nfe:serie") if ide is not None else None
+
     return {
         "chave": inf.get("Id", "").replace("NFe", ""),
         "emit_cnpj": emit_cnpj,
+        "emit_razao_social": _txt(emit, "nfe:xNome") if emit is not None else None,
+        "emit_ie": _txt(emit, "nfe:IE") if emit is not None else None,
+        "emit_xlogradouro": _txt(ender_emit, "nfe:xLgr") if ender_emit is not None else None,
+        "emit_xmun": _txt(ender_emit, "nfe:xMun") if ender_emit is not None else None,
+        "emit_uf": _txt(ender_emit, "nfe:UF") if ender_emit is not None else None,
+        "emit_cep": _txt(ender_emit, "nfe:CEP") if ender_emit is not None else None,
         "dest_cnpj": dest_cnpj or dest_cpf,
+        "numero": numero,
+        "serie": serie,
         "valor_total": _txt(total, "nfe:vNF") if total is not None else None,
+        "v_prod": _txt(total, "nfe:vProd") if total is not None else None,
+        "v_frete": _txt(total, "nfe:vFrete") if total is not None else None,
+        "v_seg": _txt(total, "nfe:vSeg") if total is not None else None,
+        "v_desc": _txt(total, "nfe:vDesc") if total is not None else None,
+        "v_ipi": _txt(total, "nfe:vIPI") if total is not None else None,
+        "v_icms": _txt(total, "nfe:vICMS") if total is not None else None,
+        "v_pis": _txt(total, "nfe:vPIS") if total is not None else None,
+        "v_cofins": _txt(total, "nfe:vCOFINS") if total is not None else None,
+        "itens": _parse_itens_nfe(inf),
+        "duplicatas": _parse_duplicatas_nfe(inf),
         "dh_emissao": _txt(ide, "nfe:dhEmi") if ide is not None else None,
         "situacao": "autorizada" if prot is not None else "desconhecida",
         "ibscbs": ibscbs_data,
@@ -303,6 +418,11 @@ def parse_doczip(schema: str, b64_content: str) -> Dict[str, Any]:
         logger.warning("Schema desconhecido: %s — salvando sem metadados", schema)
         meta = {}
 
+    import json as _json
+    # Serializar itens e duplicatas como JSON string para armazenar na coluna Text
+    itens = meta.pop("itens", None)
+    duplicatas = meta.pop("duplicatas", None)
+
     return {
         "tipo": tipo,
         "schema_xsd": schema,
@@ -310,4 +430,6 @@ def parse_doczip(schema: str, b64_content: str) -> Dict[str, Any]:
         "xml_bytes": xml_bytes,
         **{k: v for k, v in meta.items() if k != "ibscbs"},
         "ibscbs": meta.get("ibscbs"),
+        "itens_json": _json.dumps(itens, ensure_ascii=False) if itens else None,
+        "duplicatas_json": _json.dumps(duplicatas, ensure_ascii=False) if duplicatas else None,
     }

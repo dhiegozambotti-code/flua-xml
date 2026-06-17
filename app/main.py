@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
-from app.routes import distribuicao, empresas, organizacoes, saude
+from app.routes import distribuicao, documentos, empresas, organizacoes, saude
 from app.workers import polling
 
 _ADMIN_HTML = Path(__file__).parent / "static" / "admin.html"
@@ -31,6 +31,7 @@ app.include_router(saude.router)
 app.include_router(empresas.router)
 app.include_router(distribuicao.router)
 app.include_router(organizacoes.router)
+app.include_router(documentos.router)
 
 
 @app.get("/admin", response_class=HTMLResponse, include_in_schema=False)

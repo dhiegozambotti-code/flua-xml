@@ -100,6 +100,28 @@ class Documento(Base):
     tomador: Mapped[Optional[str]] = mapped_column(String(1))  # 0=rem,1=exped,2=receb,3=dest
     rem_cnpj: Mapped[Optional[str]] = mapped_column(String(14))  # remetente
     rec_cnpj: Mapped[Optional[str]] = mapped_column(String(14))  # recebedor
+    # Campos emitente (extraídos do XML completo)
+    emit_razao_social: Mapped[Optional[str]] = mapped_column(Text)
+    emit_ie: Mapped[Optional[str]] = mapped_column(String(20))
+    emit_xlogradouro: Mapped[Optional[str]] = mapped_column(Text)
+    emit_xmun: Mapped[Optional[str]] = mapped_column(String(100))
+    emit_uf: Mapped[Optional[str]] = mapped_column(String(2))
+    emit_cep: Mapped[Optional[str]] = mapped_column(String(8))
+    # Número/série da NF-e
+    numero: Mapped[Optional[str]] = mapped_column(String(20))
+    serie: Mapped[Optional[str]] = mapped_column(String(5))
+    # Totais fiscais (NF-e)
+    v_prod: Mapped[Optional[float]] = mapped_column(Numeric(15, 2))
+    v_frete: Mapped[Optional[float]] = mapped_column(Numeric(15, 2))
+    v_seg: Mapped[Optional[float]] = mapped_column(Numeric(15, 2))
+    v_desc: Mapped[Optional[float]] = mapped_column(Numeric(15, 2))
+    v_ipi: Mapped[Optional[float]] = mapped_column(Numeric(15, 2))
+    v_icms: Mapped[Optional[float]] = mapped_column(Numeric(15, 2))
+    v_pis: Mapped[Optional[float]] = mapped_column(Numeric(15, 2))
+    v_cofins: Mapped[Optional[float]] = mapped_column(Numeric(15, 2))
+    # JSON serializado de itens e duplicatas (para webhook)
+    itens_json: Mapped[Optional[str]] = mapped_column(Text)
+    duplicatas_json: Mapped[Optional[str]] = mapped_column(Text)
     # Campos IBSCBS — Reforma Tributária NT 2026.001
     ibscbs_cst: Mapped[Optional[str]] = mapped_column(String(4))
     ibscbs_cclass_trib: Mapped[Optional[str]] = mapped_column(String(10))
@@ -150,6 +172,7 @@ class WebhookConfig(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     organizacao_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     url: Mapped[str] = mapped_column(String(512), nullable=False)
+    secret: Mapped[Optional[str]] = mapped_column(String(64))  # HMAC-SHA256
     # CSV de eventos: documento.capturado, empresa.bloqueada_656, certificado.expirando
     eventos: Mapped[str] = mapped_column(
         String(512), nullable=False,

@@ -29,6 +29,15 @@ from app.services.storage import save_xml
 logger = logging.getLogger(__name__)
 
 
+def _to_decimal(val) -> Optional[Decimal]:
+    if val is None:
+        return None
+    try:
+        return Decimal(str(val))
+    except InvalidOperation:
+        return None
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -142,6 +151,28 @@ def _store_doc(db: Session, empresa_id: str, modelo: str, nsu: int, parsed: dict
         mdfe_uf_fim=parsed.get("mdfe_uf_fim"),
         mdfe_qtd_cte=parsed.get("mdfe_qtd_cte"),
         mdfe_qtd_nfe=parsed.get("mdfe_qtd_nfe"),
+        # Emitente — dados completos (NF-e)
+        emit_razao_social=parsed.get("emit_razao_social"),
+        emit_ie=parsed.get("emit_ie"),
+        emit_xlogradouro=parsed.get("emit_xlogradouro"),
+        emit_xmun=parsed.get("emit_xmun"),
+        emit_uf=parsed.get("emit_uf"),
+        emit_cep=parsed.get("emit_cep"),
+        # Número/série NF-e
+        numero=parsed.get("numero"),
+        serie=parsed.get("serie"),
+        # Totais fiscais NF-e
+        v_prod=_to_decimal(parsed.get("v_prod")),
+        v_frete=_to_decimal(parsed.get("v_frete")),
+        v_seg=_to_decimal(parsed.get("v_seg")),
+        v_desc=_to_decimal(parsed.get("v_desc")),
+        v_ipi=_to_decimal(parsed.get("v_ipi")),
+        v_icms=_to_decimal(parsed.get("v_icms")),
+        v_pis=_to_decimal(parsed.get("v_pis")),
+        v_cofins=_to_decimal(parsed.get("v_cofins")),
+        # Itens e duplicatas JSON
+        itens_json=parsed.get("itens_json"),
+        duplicatas_json=parsed.get("duplicatas_json"),
     )
     db.add(doc)
     db.commit()
@@ -174,11 +205,7 @@ def _fire_webhook_captura(db: Session, empresa: Empresa, doc: Documento) -> None
             db=db,
             organizacao_id=empresa.organizacao_id,
             empresa_id=empresa.id,
-            doc_id=doc.id,
-            modelo=doc.modelo,
-            tipo=doc.tipo,
-            chave=doc.chave,
-            valor_total=float(doc.valor_total) if doc.valor_total else None,
+            doc=doc,
         )
     except Exception:
         logger.exception("Falha ao disparar webhook documento.capturado")

@@ -48,7 +48,7 @@ class Settings(BaseSettings):
 
     @property
     def vault_master_key_bytes(self) -> bytes:
-        return bytes.fromhex(self.vault_master_key)
+        return bytes.fromhex(self.vault_master_key.strip())
 
     @property
     def nfe_endpoint(self) -> str:

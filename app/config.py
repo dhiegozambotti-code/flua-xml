@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     storage_local_dir: str = "storage"  # pasta local para XMLs (Phase 1)
 
     # SEFAZ — endpoints configuráveis (nunca hardcodados)
-    nfe_endpoint_prod: str = "https://1200k28i.integration.nfe.fazenda.gov.br/NFeDistribuicaoDFe"
+    nfe_endpoint_prod: str = "https://www1.nfe.fazenda.gov.br/NFeDistribuicaoDFe/NFeDistribuicaoDFe.asmx"
     nfe_endpoint_homolog: str = "https://hom1.nfe.fazenda.gov.br/NFeDistribuicaoDFe/NFeDistribuicaoDFe.asmx"
     tp_amb: str = "2"  # 1=produção | 2=homologação — default seguro
 

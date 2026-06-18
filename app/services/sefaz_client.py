@@ -75,19 +75,44 @@ def _build_ssl_context(cert_pem: bytes, key_pem: bytes) -> ssl.SSLContext:
     return ctx
 
 
+_WSDL_NS = {
+    "nfe":  "http://www.portalfiscal.inf.br/nfe/wsdl/NFeDistribuicaoDFe",
+    "nfce": "http://www.portalfiscal.inf.br/nfe/wsdl/NFeDistribuicaoDFe",
+    "cte":  "http://www.portalfiscal.inf.br/cte/wsdl/CTeDistribuicaoDFe",
+    "mdfe": "http://www.portalfiscal.inf.br/mdfe/wsdl/MdFeDistribuicaoDFe",
+}
+
+_DIST_TAG = {
+    "nfe":  "distDFeInt",
+    "nfce": "distDFeInt",
+    "cte":  "distDFeInt",
+    "mdfe": "distDFeInt",
+}
+
 def _soap_envelope(tp_amb: str, uf_code: int, cnpj: str, inner_xml: str,
                    modelo: str = "nfe") -> str:
-    root_tag, ns = _DIST_ROOT.get(modelo, _DIST_ROOT["nfe"])
+    _, doc_ns = _DIST_ROOT.get(modelo, _DIST_ROOT["nfe"])
+    wsdl_ns = _WSDL_NS.get(modelo, _WSDL_NS["nfe"])
+    dist_tag = _DIST_TAG.get(modelo, "distDFeInt")
+    cab_tag = "nfeCabecMsg" if modelo in ("nfe", "nfce") else "cteCabecMsg" if modelo == "cte" else "mdfeCabecMsg"
     return (
         '<?xml version="1.0" encoding="UTF-8"?>'
         '<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope">'
+        "<soap:Header>"
+        f'<{cab_tag} xmlns="{wsdl_ns}">'
+        f"<cUF>{uf_code}</cUF>"
+        "<versaoDados>1.01</versaoDados>"
+        f"</{cab_tag}>"
+        "</soap:Header>"
         "<soap:Body>"
-        f'<{root_tag} xmlns="{ns}">'
+        f'<nfeDadosMsg xmlns="{wsdl_ns}">'
+        f'<{dist_tag} xmlns="{doc_ns}" versao="1.01">'
         f"<tpAmb>{tp_amb}</tpAmb>"
         f"<cUFAutor>{uf_code}</cUFAutor>"
         f"<CNPJ>{cnpj}</CNPJ>"
         f"{inner_xml}"
-        f"</{root_tag}>"
+        f"</{dist_tag}>"
+        "</nfeDadosMsg>"
         "</soap:Body>"
         "</soap:Envelope>"
     )
@@ -151,11 +176,15 @@ class NFeSoapClient:
         self._ssl_ctx = _build_ssl_context(cert_pem, key_pem)
 
     def _post(self, body: str) -> Dict[str, Any]:
+        wsdl_ns = _WSDL_NS.get(self.modelo, _WSDL_NS["nfe"])
+        action = f"{wsdl_ns}/nfeDistDFeInteresse"
+        # SOAP 1.2: action vai no Content-Type, não como header separado
+        content_type = f'application/soap+xml; charset=utf-8; action="{action}"'
         with httpx.Client(verify=self._ssl_ctx, timeout=self.timeout) as client:
             resp = client.post(
                 self.endpoint,
                 content=body.encode("utf-8"),
-                headers={"Content-Type": "application/soap+xml; charset=utf-8"},
+                headers={"Content-Type": content_type},
             )
         resp.raise_for_status()
         return _parse_response(resp.content, self.modelo)

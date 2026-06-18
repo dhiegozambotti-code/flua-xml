@@ -102,6 +102,13 @@ def upload_certificado(
         valido_ate=valido_ate,
     )
     db.add(certificado)
+
+    # Reativar estados de distribuição travados em cert_invalido
+    from app.models import DistribuicaoEstado
+    db.query(DistribuicaoEstado).filter_by(
+        empresa_id=empresa_id, status="cert_invalido"
+    ).update({"status": "ativo"})
+
     db.commit()
     db.refresh(certificado)
     return certificado

@@ -162,3 +162,39 @@ def consultar(body: ConsultarInput, authorization: str | None = Header(default=N
         }
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
+
+
+class WsdlInput(BaseModel):
+    cert_pem: str
+    key_pem: str
+    ambiente: Literal[1, 2]
+
+
+@router.post("/wsdl")
+def wsdl_fetch(body: WsdlInput, authorization: str | None = Header(default=None)):
+    """Busca o WSDL do eSocial com mTLS — debug temporário."""
+    _check_auth(authorization)
+    host = HOST[body.ambiente]
+    path = "/servicos/empregador/enviarloteeventos/WsEnviarLoteEventos.svc?wsdl"
+    with (
+        tempfile.NamedTemporaryFile("w", suffix=".pem", delete=False) as cf,
+        tempfile.NamedTemporaryFile("w", suffix=".pem", delete=False) as kf,
+    ):
+        cf.write(body.cert_pem); kf.write(body.key_pem)
+        cert_path, key_path = cf.name, kf.name
+    try:
+        ip = _resolve_ip(host)
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        ctx.load_cert_chain(certfile=cert_path, keyfile=key_path)
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        req = urllib.request.Request(f"https://{ip}{path}", method="GET", headers={"Host": host})
+        try:
+            with urllib.request.urlopen(req, context=ctx, timeout=30) as resp:
+                return {"wsdl": resp.read().decode("utf-8")}
+        except urllib.error.HTTPError as e:
+            return {"wsdl": e.read().decode("utf-8"), "status": e.code}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    finally:
+        os.unlink(cert_path); os.unlink(key_path)

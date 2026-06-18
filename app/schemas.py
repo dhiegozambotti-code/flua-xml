@@ -24,6 +24,14 @@ class EmpresaOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class EmpresaUpdate(BaseModel):
+    cnpj: Optional[str] = None
+    razao_social: Optional[str] = None
+    uf: Optional[str] = None
+    regime: Optional[str] = None
+    ativo: Optional[bool] = None
+
+
 class CertificadoOut(BaseModel):
     id: str
     empresa_id: str

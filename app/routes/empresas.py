@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.db import get_db
 from app.models import Certificado, Empresa
-from app.schemas import CertificadoOut, EmpresaCreate, EmpresaOut
+from app.schemas import CertificadoOut, EmpresaCreate, EmpresaOut, EmpresaUpdate
 from app.services.crypto import encrypt_bytes
 
 from cryptography import x509
@@ -37,6 +37,18 @@ def buscar_empresa(empresa_id: str, db: Session = Depends(get_db)):
     empresa = db.get(Empresa, empresa_id)
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa não encontrada")
+    return empresa
+
+
+@router.patch("/{empresa_id}", response_model=EmpresaOut)
+def atualizar_empresa(empresa_id: str, body: EmpresaUpdate, db: Session = Depends(get_db)):
+    empresa = db.get(Empresa, empresa_id)
+    if not empresa:
+        raise HTTPException(status_code=404, detail="Empresa não encontrada")
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(empresa, field, value)
+    db.commit()
+    db.refresh(empresa)
     return empresa
 
 

@@ -557,6 +557,11 @@ tbody tr:hover td { background: var(--panel2); }
 .mdl-xml { background:#0a0e14; border:1px solid var(--line); border-radius:8px; padding:14px; font-family:var(--mono); font-size:11px; line-height:1.5; color:#9cdcfe; white-space:pre; overflow:auto; max-height:380px; }
 .mdl-foot { display:flex; gap:10px; justify-content:flex-end; padding:14px 20px; border-top:1px solid var(--line); }
 
+/* ── Filtros de documentos ── */
+.docs-filtros { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; padding:14px 0 18px; border-bottom:1px solid var(--line); margin-bottom:16px; align-items:end; }
+.docs-filtros .fg label { font-size:10px; text-transform:uppercase; letter-spacing:.5px; color:var(--text3); display:block; margin-bottom:4px; }
+.docs-filtros-acoes { display:flex; gap:8px; align-items:end; grid-column:1/-1; flex-wrap:wrap; }
+
 .spinner {
   width: 13px; height: 13px;
   border: 2px solid rgba(255,255,255,.15);
@@ -1034,14 +1039,23 @@ async function renderDocumentos() {
   <div class="card">
     <div class="card-top">
       <div class="card-label">Documentos</div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <select id="fm" style="width:100px" onchange="S.mod=this.value;S.off=0;loadDocs()">
-          <option value="">Modelo</option><option value="nfe">NF-e</option><option value="nfce">NFC-e</option><option value="cte">CT-e</option><option value="mdfe">MDF-e</option>
-        </select>
-        <select id="ft" style="width:100px" onchange="S.tipo=this.value;S.off=0;loadDocs()">
-          <option value="">Tipo</option><option value="completo">Completo</option><option value="resumo">Resumo</option><option value="evento">Evento</option>
-        </select>
-        <button class="btn btn-ghost btn-sm" onclick="S.off=0;loadDocs()">↻</button>
+      <button class="btn btn-ghost btn-sm" onclick="loadDocs()">↻</button>
+    </div>
+    <div class="docs-filtros">
+      <div class="fg"><label>Modelo</label>
+        <select id="fm"><option value="">Todos</option><option value="nfe">NF-e</option><option value="nfce">NFC-e</option><option value="cte">CT-e</option><option value="mdfe">MDF-e</option></select>
+      </div>
+      <div class="fg"><label>Tipo</label>
+        <select id="ft"><option value="">Todos</option><option value="completo">Completo</option><option value="resumo">Resumo</option><option value="evento">Evento</option></select>
+      </div>
+      <div class="fg"><label>Emissão (inicial)</label><input id="fde" type="date"></div>
+      <div class="fg"><label>Emissão (final)</label><input id="fate" type="date"></div>
+      <div class="fg"><label>CNPJ Emitente</label><input id="femit" placeholder="só números" maxlength="14"></div>
+      <div class="fg"><label>CNPJ Destinatário</label><input id="fdest" placeholder="só números" maxlength="14"></div>
+      <div class="docs-filtros-acoes">
+        <button class="btn btn-teal btn-sm" onclick="S.off=0;loadDocs()">🔍 Pesquisar</button>
+        <button class="btn btn-ghost btn-sm" onclick="limpaFiltros()">Limpar</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportarCsv()">📊 Exportar Excel</button>
       </div>
     </div>
     <div id="docs-t"><div class="empty"><div class="empty-ico">⏳</div><div class="empty-txt">Carregando…</div></div></div>
@@ -1050,10 +1064,31 @@ async function renderDocumentos() {
   loadDocs();
 }
 
+function _docsQuery(){
+  const v=id=>document.getElementById(id)?.value.trim()||'';
+  let p=`limit=15`;
+  const m=v('fm'),t=v('ft'),de=v('fde'),ate=v('fate'),em=v('femit'),ds=v('fdest');
+  if(m)p+=`&modelo=${m}`;
+  if(t)p+=`&tipo=${t}`;
+  if(de)p+=`&de=${de}T00:00:00`;
+  if(ate)p+=`&ate=${ate}T23:59:59`;
+  if(em)p+=`&emit_cnpj=${em}`;
+  if(ds)p+=`&dest_cnpj=${ds}`;
+  return p;
+}
+
+function limpaFiltros(){
+  ['fm','ft','fde','fate','femit','fdest'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  S.off=0; loadDocs();
+}
+
+function exportarCsv(){
+  const url=`${BASE}/empresas/${S.id}/documentos/exportar-csv?${_docsQuery().replace(/&?limit=15/,'')}`;
+  window.open(url,'_blank');
+}
+
 async function loadDocs() {
-  let u=`/empresas/${S.id}/documentos?limit=15&offset=${S.off}`;
-  if(S.mod) u+=`&modelo=${S.mod}`;
-  if(S.tipo) u+=`&tipo=${S.tipo}`;
+  let u=`/empresas/${S.id}/documentos?${_docsQuery()}&offset=${S.off}`;
   try {
     const d=await api('GET',u);
     const el=document.getElementById('docs-t');

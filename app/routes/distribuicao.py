@@ -290,19 +290,7 @@ def listar_manifestacoes(
 
 # ---- endpoints de documentos ------------------------------------------------
 
-@router.get("/empresas/{empresa_id}/documentos", response_model=List[DocumentoOut])
-def listar_documentos(
-    empresa_id: str,
-    modelo: Optional[str] = None,
-    tipo: Optional[str] = None,
-    de: Optional[datetime] = Query(default=None, description="Filtro de data de emissão (ISO8601)"),
-    ate: Optional[datetime] = Query(default=None, description="Filtro de data de emissão (ISO8601)"),
-    limit: int = 50,
-    offset: int = 0,
-    db: Session = Depends(get_db),
-):
-    if not db.get(Empresa, empresa_id):
-        raise HTTPException(404, "Empresa não encontrada")
+def _filtra_documentos(db, empresa_id, modelo, tipo, de, ate, emit_cnpj, dest_cnpj):
     q = db.query(Documento).filter_by(empresa_id=empresa_id)
     if modelo:
         q = q.filter_by(modelo=modelo)
@@ -312,7 +300,72 @@ def listar_documentos(
         q = q.filter(Documento.dh_emissao >= de)
     if ate:
         q = q.filter(Documento.dh_emissao <= ate)
+    if emit_cnpj:
+        q = q.filter(Documento.emit_cnpj == emit_cnpj.strip())
+    if dest_cnpj:
+        q = q.filter(Documento.dest_cnpj == dest_cnpj.strip())
+    return q
+
+
+@router.get("/empresas/{empresa_id}/documentos", response_model=List[DocumentoOut])
+def listar_documentos(
+    empresa_id: str,
+    modelo: Optional[str] = None,
+    tipo: Optional[str] = None,
+    de: Optional[datetime] = Query(default=None, description="Filtro de data de emissão (ISO8601)"),
+    ate: Optional[datetime] = Query(default=None, description="Filtro de data de emissão (ISO8601)"),
+    emit_cnpj: Optional[str] = Query(default=None, description="CNPJ do emitente"),
+    dest_cnpj: Optional[str] = Query(default=None, description="CNPJ do destinatário"),
+    limit: int = 50,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+):
+    if not db.get(Empresa, empresa_id):
+        raise HTTPException(404, "Empresa não encontrada")
+    q = _filtra_documentos(db, empresa_id, modelo, tipo, de, ate, emit_cnpj, dest_cnpj)
     return q.order_by(Documento.capturado_em.desc()).offset(offset).limit(limit).all()
+
+
+@router.get("/empresas/{empresa_id}/documentos/exportar-csv")
+def exportar_documentos_csv(
+    empresa_id: str,
+    modelo: Optional[str] = None,
+    tipo: Optional[str] = None,
+    de: Optional[datetime] = Query(default=None),
+    ate: Optional[datetime] = Query(default=None),
+    emit_cnpj: Optional[str] = Query(default=None),
+    dest_cnpj: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    """Exporta os documentos filtrados em CSV (abre no Excel)."""
+    if not db.get(Empresa, empresa_id):
+        raise HTTPException(404, "Empresa não encontrada")
+    docs = (
+        _filtra_documentos(db, empresa_id, modelo, tipo, de, ate, emit_cnpj, dest_cnpj)
+        .order_by(Documento.dh_emissao.desc())
+        .all()
+    )
+    import csv as _csv
+    buf = io.StringIO()
+    w = _csv.writer(buf, delimiter=";")
+    w.writerow(["Modelo", "Tipo", "Numero", "Serie", "Situacao", "Rz Emitente",
+                "CNPJ Emit", "CNPJ Dest", "Data Emissao", "Valor", "Capturado em", "Chave"])
+    for d in docs:
+        w.writerow([
+            d.modelo, d.tipo, d.numero or "", d.serie or "", d.situacao or "",
+            d.emit_razao_social or "", d.emit_cnpj or "", d.dest_cnpj or "",
+            d.dh_emissao.strftime("%d/%m/%Y") if d.dh_emissao else "",
+            (f"{float(d.valor_total):.2f}".replace(".", ",") if d.valor_total is not None else ""),
+            d.capturado_em.strftime("%d/%m/%Y %H:%M") if d.capturado_em else "",
+            d.chave or "",
+        ])
+    # BOM para o Excel reconhecer UTF-8 com acentos
+    content = ("﻿" + buf.getvalue()).encode("utf-8")
+    return Response(
+        content=content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="documentos.csv"'},
+    )
 
 
 @router.get("/empresas/{empresa_id}/documentos/{doc_id}", response_model=DocumentoOut)

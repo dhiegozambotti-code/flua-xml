@@ -28,16 +28,15 @@ NS_CONSULTA_SCHEMA = "http://www.esocial.gov.br/schema/lote/eventos/envio/consul
 
 
 def _soap_envelope(ns: str, action: str, to: str, body: str) -> str:
-    # SOAP 1.2 + WS-Addressing (obrigatório para wsHttpBinding WCF do eSocial)
-    WSA = "http://www.w3.org/2005/08/addressing"
+    # SOAP 1.1 envelope + WS-Addressing headers (basicHttpBinding + WSAddressing no WCF do eSocial)
     return (
-        f'<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"'
+        f'<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"'
         f' xmlns:a="http://www.w3.org/2005/08/addressing" xmlns:v1="{ns}">'
-        f'<s:Header>'
-        f'<a:Action s:mustUnderstand="1">{action}</a:Action>'
-        f'<a:To s:mustUnderstand="1">{to}</a:To>'
-        f'</s:Header>'
-        f"<s:Body>{body}</s:Body></s:Envelope>"
+        f'<soapenv:Header>'
+        f'<a:Action soapenv:mustUnderstand="1">{action}</a:Action>'
+        f'<a:To soapenv:mustUnderstand="1">{to}</a:To>'
+        f'</soapenv:Header>'
+        f"<soapenv:Body>{body}</soapenv:Body></soapenv:Envelope>"
     )
 
 
@@ -78,7 +77,8 @@ def _soap_post(host: str, path: str, action: str, envelope: str, cert_pem: str, 
             data=body_bytes,
             method="POST",
             headers={
-                "Content-Type": f'application/soap+xml;charset=UTF-8;action="{action}"',
+                "Content-Type": "text/xml;charset=UTF-8",
+                "SOAPAction": f'"{action}"',
                 "Content-Length": str(len(body_bytes)),
                 "Host": host,
             },

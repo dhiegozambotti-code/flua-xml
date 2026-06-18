@@ -87,8 +87,9 @@ def _soap_post(host: str, path: str, action: str, envelope: str, cert_pem: str, 
             with urllib.request.urlopen(req, context=ctx, timeout=60) as resp:
                 return resp.read().decode("utf-8")
         except urllib.error.HTTPError as e:
-            # SOAP Fault vem como HTTP 500 — lemos o body para extrair o erro
-            return e.read().decode("utf-8")
+            body = e.read().decode("utf-8")
+            print(f"[esocial] HTTP {e.code} {e.reason} | body={body[:300]!r}")
+            return body or f"<ProxyError><status>{e.code}</status><reason>{e.reason}</reason></ProxyError>"
     finally:
         os.unlink(cert_path)
         os.unlink(key_path)

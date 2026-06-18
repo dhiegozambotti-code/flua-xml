@@ -164,6 +164,7 @@ class WsdlInput(BaseModel):
     cert_pem: str
     key_pem: str
     ambiente: Literal[1, 2]
+    svc: Literal["enviar", "consultar"] = "enviar"
 
 
 @router.post("/wsdl")
@@ -171,7 +172,10 @@ def wsdl_fetch(body: WsdlInput, authorization: str | None = Header(default=None)
     """Busca o WSDL do eSocial com mTLS — debug temporário."""
     _check_auth(authorization)
     host = HOST[body.ambiente]
-    path = "/servicos/empregador/enviarloteeventos/WsEnviarLoteEventos.svc?wsdl"
+    if body.svc == "consultar":
+        path = "/servicos/empregador/consultarloteeventos/WsConsultarLoteEventos.svc?wsdl"
+    else:
+        path = "/servicos/empregador/enviarloteeventos/WsEnviarLoteEventos.svc?wsdl"
     with (
         tempfile.NamedTemporaryFile("w", suffix=".pem", delete=False) as cf,
         tempfile.NamedTemporaryFile("w", suffix=".pem", delete=False) as kf,

@@ -6,6 +6,7 @@ Nunca escreve chave privada em disco.
 
 import logging
 import os
+import socket
 import ssl
 import tempfile
 import time
@@ -16,6 +17,35 @@ from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption,
 from lxml import etree
 
 logger = logging.getLogger(__name__)
+
+# Mapeamento hostname → IP para contornar DNS de provedores que não resolvem .gov.br
+# Configurável via env var: SEFAZ_HOSTS_OVERRIDE="host1:ip1,host2:ip2"
+_HOSTS_OVERRIDE: Dict[str, str] = {
+    "www1.nfe.fazenda.gov.br": "200.198.239.181",
+    "cte.fazenda.gov.br": "200.198.239.181",
+    "mdfe.fazenda.gov.br": "200.198.239.181",
+    "www.nfe.fazenda.gov.br": "200.198.239.181",
+    "nfe.svrs.rs.gov.br": "4.201.99.36",
+    "homologacao.nfe.fazenda.gov.br": "200.198.239.133",
+    "hom1.nfe.fazenda.gov.br": "200.198.239.133",
+}
+
+# Injetar overrides extras via env var
+for _entry in os.environ.get("SEFAZ_HOSTS_OVERRIDE", "").split(","):
+    if ":" in _entry:
+        _h, _ip = _entry.strip().split(":", 1)
+        _HOSTS_OVERRIDE[_h.strip()] = _ip.strip()
+
+# Monkey-patch socket.getaddrinfo para resolver hostnames SEFAZ diretamente
+_orig_getaddrinfo = socket.getaddrinfo
+
+def _patched_getaddrinfo(host, port, *args, **kwargs):
+    if isinstance(host, str) and host in _HOSTS_OVERRIDE:
+        logger.debug("DNS override %s → %s", host, _HOSTS_OVERRIDE[host])
+        host = _HOSTS_OVERRIDE[host]
+    return _orig_getaddrinfo(host, port, *args, **kwargs)
+
+socket.getaddrinfo = _patched_getaddrinfo
 
 _NS_NFE  = "http://www.portalfiscal.inf.br/nfe"
 _NS_MDFE = "http://www.portalfiscal.inf.br/mdfe"

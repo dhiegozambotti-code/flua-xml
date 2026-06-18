@@ -1,6 +1,6 @@
 """
 Proxy mTLS para os webservices do eSocial do governo federal.
-Roda em São Paulo (southamerica-east1) onde o DNS gov.br resolve corretamente.
+Usa dnspython para resolver gov.br via 8.8.8.8 (Railway não resolve .gov.br por padrão).
 """
 import os
 import re
@@ -8,6 +8,8 @@ import ssl
 import tempfile
 import urllib.request
 from typing import Literal
+
+import dns.resolver as _dns
 
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
@@ -36,6 +38,15 @@ def _pick(xml: str, tag: str) -> str | None:
     return m.group(1).strip() if m else None
 
 
+def _resolve_ip(hostname: str) -> str:
+    r = _dns.Resolver(configure=False)
+    r.nameservers = ["8.8.8.8", "1.1.1.1"]
+    r.timeout = 5
+    r.lifetime = 10
+    answers = r.resolve(hostname, "A")
+    return str(answers[0])
+
+
 def _soap_post(host: str, path: str, action: str, envelope: str, cert_pem: str, key_pem: str) -> str:
     with (
         tempfile.NamedTemporaryFile("w", suffix=".pem", delete=False) as cf,
@@ -46,6 +57,7 @@ def _soap_post(host: str, path: str, action: str, envelope: str, cert_pem: str, 
         cert_path, key_path = cf.name, kf.name
 
     try:
+        ip = _resolve_ip(host)
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ctx.load_cert_chain(certfile=cert_path, keyfile=key_path)
         ctx.load_default_certs()
@@ -54,13 +66,14 @@ def _soap_post(host: str, path: str, action: str, envelope: str, cert_pem: str, 
 
         body_bytes = envelope.encode("utf-8")
         req = urllib.request.Request(
-            f"https://{host}{path}",
+            f"https://{ip}{path}",
             data=body_bytes,
             method="POST",
             headers={
                 "Content-Type": "text/xml;charset=UTF-8",
                 "SOAPAction": f'"{action}"',
                 "Content-Length": str(len(body_bytes)),
+                "Host": host,
             },
         )
         with urllib.request.urlopen(req, context=ctx, timeout=60) as resp:

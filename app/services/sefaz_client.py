@@ -133,21 +133,18 @@ _DIST_TAG = {
 
 def _soap_envelope(tp_amb: str, uf_code: int, cnpj: str, inner_xml: str,
                    modelo: str = "nfe") -> str:
-    _, doc_ns = _DIST_ROOT.get(modelo, _DIST_ROOT["nfe"])
+    # Operação SOAP (nfeDistDFeInteresse) e namespace do documento (distDFeInt)
+    op_tag, doc_ns = _DIST_ROOT.get(modelo, _DIST_ROOT["nfe"])
     wsdl_ns = _WSDL_NS.get(modelo, _WSDL_NS["nfe"])
     dist_tag = _DIST_TAG.get(modelo, "distDFeInt")
-    cab_tag = "nfeCabecMsg" if modelo in ("nfe", "nfce") else "cteCabecMsg" if modelo == "cte" else "mdfeCabecMsg"
+    # NFeDistribuicaoDFe NÃO usa soap:Header/nfeCabecMsg — a versão vai no distDFeInt.
+    # Estrutura: <op_tag><nfeDadosMsg><distDFeInt versao="1.01">...
     return (
         '<?xml version="1.0" encoding="UTF-8"?>'
         '<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope">'
-        "<soap:Header>"
-        f'<{cab_tag} xmlns="{wsdl_ns}">'
-        f"<cUF>{uf_code}</cUF>"
-        "<versaoDados>1.01</versaoDados>"
-        f"</{cab_tag}>"
-        "</soap:Header>"
         "<soap:Body>"
-        f'<nfeDadosMsg xmlns="{wsdl_ns}">'
+        f'<{op_tag} xmlns="{wsdl_ns}">'
+        "<nfeDadosMsg>"
         f'<{dist_tag} xmlns="{doc_ns}" versao="1.01">'
         f"<tpAmb>{tp_amb}</tpAmb>"
         f"<cUFAutor>{uf_code}</cUFAutor>"
@@ -155,6 +152,7 @@ def _soap_envelope(tp_amb: str, uf_code: int, cnpj: str, inner_xml: str,
         f"{inner_xml}"
         f"</{dist_tag}>"
         "</nfeDadosMsg>"
+        f"</{op_tag}>"
         "</soap:Body>"
         "</soap:Envelope>"
     )
@@ -219,7 +217,8 @@ class NFeSoapClient:
 
     def _post(self, body: str) -> Dict[str, Any]:
         wsdl_ns = _WSDL_NS.get(self.modelo, _WSDL_NS["nfe"])
-        action = f"{wsdl_ns}/nfeDistDFeInteresse"
+        op_tag, _ = _DIST_ROOT.get(self.modelo, _DIST_ROOT["nfe"])
+        action = f"{wsdl_ns}/{op_tag}"
         # SOAP 1.2: action vai no Content-Type, não como header separado
         content_type = f'application/soap+xml; charset=utf-8; action="{action}"'
         with httpx.Client(verify=self._ssl_ctx, timeout=self.timeout) as client:

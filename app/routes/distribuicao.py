@@ -206,6 +206,46 @@ def ajustar_nsu(
     return {"status": "ok", "ult_nsu_anterior": anterior, "ult_nsu": estado.ult_nsu, "distribuicao_status": estado.status}
 
 
+@router.post("/empresas/{empresa_id}/distribuicao/{modelo}/pausar")
+def pausar_distribuicao(
+    empresa_id: str,
+    modelo: str,
+    tipo_fluxo: str = "entrada",
+    db: Session = Depends(get_db),
+):
+    """Pausa o polling de um modelo (status=pausado → excluído da varredura)."""
+    estado = (
+        db.query(DistribuicaoEstado)
+        .filter_by(empresa_id=empresa_id, modelo=modelo, tipo_fluxo=tipo_fluxo)
+        .first()
+    )
+    if not estado:
+        raise HTTPException(404, "Estado de distribuição não encontrado")
+    estado.status = "pausado"
+    db.commit()
+    return {"status": "ok", "distribuicao_status": estado.status}
+
+
+@router.post("/empresas/{empresa_id}/distribuicao/{modelo}/reativar")
+def reativar_distribuicao(
+    empresa_id: str,
+    modelo: str,
+    tipo_fluxo: str = "entrada",
+    db: Session = Depends(get_db),
+):
+    """Reativa o polling de um modelo pausado."""
+    estado = (
+        db.query(DistribuicaoEstado)
+        .filter_by(empresa_id=empresa_id, modelo=modelo, tipo_fluxo=tipo_fluxo)
+        .first()
+    )
+    if not estado:
+        raise HTTPException(404, "Estado de distribuição não encontrado")
+    estado.status = "ativo"
+    db.commit()
+    return {"status": "ok", "distribuicao_status": estado.status}
+
+
 # ---- endpoints de manifestação ----------------------------------------------
 
 @router.post("/empresas/{empresa_id}/manifestar", response_model=ManifestacaoOut, status_code=201)

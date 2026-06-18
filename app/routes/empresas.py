@@ -21,19 +21,31 @@ def diagnostico_certificado(empresa_id: str, db: Session = Depends(get_db)):
     cert = db.query(Certificado).filter_by(empresa_id=empresa_id, status="ativo").order_by(Certificado.valido_ate.desc()).first()
     if not cert:
         return {"ok": False, "erro": "Nenhum certificado ativo encontrado"}
+    import hashlib
     try:
         key = settings.vault_master_key_bytes
         key_len = len(key)
+        key_hash = hashlib.sha256(key).hexdigest()[:16]
     except Exception as e:
         return {"ok": False, "erro": f"VAULT_MASTER_KEY inválida: {e}"}
+
+    # Criptografar e descriptografar um teste para verificar a chave
+    test_plain = b"test"
+    test_enc = encrypt_bytes(test_plain, key)
+    try:
+        assert decrypt_bytes(test_enc, key) == test_plain
+        roundtrip_ok = True
+    except Exception:
+        roundtrip_ok = False
+
     try:
         pfx = decrypt_bytes(cert.pfx_cifrado, key)
         senha = decrypt_bytes(cert.senha_cifrada, key).decode()
         from cryptography.hazmat.primitives.serialization import pkcs12 as pkcs12_mod
         pk, c, _ = pkcs12_mod.load_key_and_certificates(pfx, senha.encode())
-        return {"ok": True, "key_len": key_len, "fingerprint": cert.fingerprint, "valido_ate": str(cert.valido_ate), "subject": str(c.subject)}
+        return {"ok": True, "key_len": key_len, "key_hash": key_hash, "roundtrip_ok": roundtrip_ok, "fingerprint": cert.fingerprint, "valido_ate": str(cert.valido_ate), "subject": str(c.subject)}
     except Exception as e:
-        return {"ok": False, "key_len": key_len, "fingerprint": cert.fingerprint, "erro": str(e)}
+        return {"ok": False, "key_len": key_len, "key_hash": key_hash, "roundtrip_ok": roundtrip_ok, "fingerprint": cert.fingerprint, "erro": repr(e)}
 
 
 @router.get("", response_model=List[EmpresaOut])

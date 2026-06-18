@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import Documento
-from app.services.auth import require_api_key
+from app.services.auth import get_organizacao_id as require_api_key
 from app.services.storage import load_xml
 
 router = APIRouter(prefix="/documentos", tags=["documentos"])

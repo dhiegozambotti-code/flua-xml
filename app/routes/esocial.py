@@ -22,7 +22,7 @@ HOST = {
     2: "webservices.producaorestrita.esocial.gov.br",
 }
 
-NS_ENVIO = "http://www.esocial.gov.br/servicos/empregador/lote/eventos/envio/v1_1_1"
+NS_ENVIO = "http://www.esocial.gov.br/servicos/empregador/lote/eventos/envio/v1_1_0"
 NS_CONSULTA = "http://www.esocial.gov.br/servicos/empregador/lote/eventos/envio/consulta/retornoProcessamento/v1_0_0"
 NS_CONSULTA_SCHEMA = "http://www.esocial.gov.br/schema/lote/eventos/envio/consulta/retornoProcessamento/v1_0_0"
 
@@ -122,7 +122,7 @@ def enviar(body: EnviarInput, authorization: str | None = Header(default=None)):
     _check_auth(authorization)
     host = HOST[body.ambiente]
     path = "/servicos/empregador/enviarloteeventos/WsEnviarLoteEventos.svc"
-    action = f"{NS_ENVIO}/IServicoEnviarLoteEventos/EnviarLoteEventos"
+    action = f"{NS_ENVIO}/ServicoEnviarLoteEventos/EnviarLoteEventos"
     to = f"https://{host}{path}"
     soap_body = f"<v1:EnviarLoteEventos><v1:loteEventos>{body.lote_xml}</v1:loteEventos></v1:EnviarLoteEventos>"
     envelope = _soap_envelope(NS_ENVIO, action, to, soap_body)
@@ -144,7 +144,7 @@ def consultar(body: ConsultarInput, authorization: str | None = Header(default=N
     _check_auth(authorization)
     host = HOST[body.ambiente]
     path = "/servicos/empregador/consultarloteeventos/WsConsultarLoteEventos.svc"
-    action = f"{NS_CONSULTA}/IServicoConsultarLoteEventos/ConsultarLoteEventos"
+    action = f"{NS_CONSULTA}/ServicoConsultarLoteEventos/ConsultarLoteEventos"
     to = f"https://{host}{path}"
     consulta = (
         f'<eSocial xmlns="{NS_CONSULTA_SCHEMA}" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'

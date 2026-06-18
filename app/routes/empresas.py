@@ -15,6 +15,14 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 router = APIRouter(prefix="/empresas", tags=["empresas"])
 
 
+@router.delete("/{empresa_id}/certificados")
+def deletar_certificados(empresa_id: str, db: Session = Depends(get_db)):
+    """Remove todos os certificados da empresa para permitir re-upload limpo."""
+    n = db.query(Certificado).filter_by(empresa_id=empresa_id).delete()
+    db.commit()
+    return {"deletados": n}
+
+
 @router.get("/{empresa_id}/certificado/diagnostico")
 def diagnostico_certificado(empresa_id: str, db: Session = Depends(get_db)):
     """Diagnóstico: verifica se o certificado pode ser descriptografado."""

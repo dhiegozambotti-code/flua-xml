@@ -333,6 +333,19 @@ def _poll_estado(db: Session, estado: DistribuicaoEstado, empresa: Empresa,
             break
 
         elif cstat == 656:
+            # O SEFAZ reporta ultNSU/maxNSU mesmo no 656. Se a distribuição já foi
+            # consumida antes (ultNSU > nosso ult_nsu), avançamos para a posição real —
+            # pedir a partir de 0 é justamente o que dispara o "consumo indevido".
+            sefaz_ult = resp.get("ult_nsu") or 0
+            sefaz_max = resp.get("max_nsu") or 0
+            if sefaz_ult > estado.ult_nsu:
+                logger.warning(
+                    "656 com ultNSU=%s > local=%s; avançando ponteiro para evitar re-consumo",
+                    sefaz_ult, estado.ult_nsu,
+                )
+                estado.ult_nsu = sefaz_ult
+                if sefaz_max:
+                    estado.max_nsu = sefaz_max
             estado.status = "bloqueado_656"
             estado.bloqueado_ate = now + timedelta(hours=1)
             estado.proximo_polling = now + timedelta(hours=1)

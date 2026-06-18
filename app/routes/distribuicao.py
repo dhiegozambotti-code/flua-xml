@@ -183,6 +183,29 @@ def disparar_poll(
     }
 
 
+@router.post("/empresas/{empresa_id}/distribuicao/{modelo}/set-nsu")
+def ajustar_nsu(
+    empresa_id: str,
+    modelo: str,
+    ult_nsu: int,
+    tipo_fluxo: str = "entrada",
+    db: Session = Depends(get_db),
+):
+    """Ajusta manualmente o ponteiro ult_nsu (ex: alinhar com distribuição já consumida no SEFAZ)."""
+    estado = (
+        db.query(DistribuicaoEstado)
+        .filter_by(empresa_id=empresa_id, modelo=modelo, tipo_fluxo=tipo_fluxo)
+        .first()
+    )
+    if not estado:
+        raise HTTPException(404, "Estado de distribuição não encontrado")
+    anterior = estado.ult_nsu
+    estado.ult_nsu = ult_nsu
+    db.commit()
+    db.refresh(estado)
+    return {"status": "ok", "ult_nsu_anterior": anterior, "ult_nsu": estado.ult_nsu, "distribuicao_status": estado.status}
+
+
 # ---- endpoints de manifestação ----------------------------------------------
 
 @router.post("/empresas/{empresa_id}/manifestar", response_model=ManifestacaoOut, status_code=201)

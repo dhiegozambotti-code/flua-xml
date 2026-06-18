@@ -38,28 +38,13 @@ def _pick(xml: str, tag: str) -> str | None:
     return m.group(1).strip() if m else None
 
 
-_DNS_SERVERS = [
-    "200.160.0.8",   # NIC.br / Registro.br (Brasil)
-    "200.160.2.3",   # NIC.br secundário
-    "200.204.0.10",  # Vivo/Telesp (Brasil)
-    "8.8.8.8",       # Google (fallback)
-    "1.1.1.1",       # Cloudflare (fallback)
-]
+# webservices.esocial.gov.br não tem registro público DNS (split-horizon SERPRO).
+# IP confirmado via resolução local no Brasil: 200.198.235.238 (mesmo servidor, Host header diferencia).
+_ESOCIAL_IP = "200.198.235.238"
 
 
 def _resolve_ip(hostname: str) -> str:
-    last_err: Exception = RuntimeError("nenhum resolver disponível")
-    for ns in _DNS_SERVERS:
-        try:
-            r = _dns.Resolver(configure=False)
-            r.nameservers = [ns]
-            r.timeout = 4
-            r.lifetime = 8
-            answers = r.resolve(hostname, "A")
-            return str(answers[0])
-        except Exception as e:
-            last_err = e
-    raise RuntimeError(f"Não foi possível resolver {hostname}: {last_err}")
+    return _ESOCIAL_IP
 
 
 def _soap_post(host: str, path: str, action: str, envelope: str, cert_pem: str, key_pem: str) -> str:

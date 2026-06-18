@@ -110,6 +110,15 @@ def _store_doc(db: Session, empresa_id: str, modelo: str, nsu: int, parsed: dict
         except Exception as exc:
             logger.warning("Falha ao salvar XML em disco (nsu=%s): %s", nsu, exc)
 
+    # Persistência durável: XML comprimido no Postgres (imune a redeploys)
+    xml_gz = None
+    if xml_bytes:
+        import gzip
+        try:
+            xml_gz = gzip.compress(xml_bytes)
+        except Exception as exc:
+            logger.warning("Falha ao comprimir XML (nsu=%s): %s", nsu, exc)
+
     try:
         valor = Decimal(str(parsed["valor_total"])) if parsed.get("valor_total") else None
     except InvalidOperation:
@@ -136,6 +145,7 @@ def _store_doc(db: Session, empresa_id: str, modelo: str, nsu: int, parsed: dict
         dh_emissao=dh,
         situacao=parsed.get("situacao"),
         storage_key=storage_key,
+        xml_gz=xml_gz,
         sha256=parsed.get("sha256"),
         # CT-e
         modal=parsed.get("modal"),

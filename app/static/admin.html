@@ -1058,7 +1058,7 @@ async function loadDocs() {
         <td class="mono" style="text-align:right">${x.valor_total?'R$ '+Number(x.valor_total).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</td>
         <td style="color:var(--text2);font-size:11px">${dt(x.capturado_em)}</td>
         <td class="mono" style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${x.chave||''}">${x.chave?x.chave.slice(0,18)+'…':'—'}</td>
-        <td>${x.storage_key?`<a href="/empresas/${S.id}/documentos/${x.id}/xml" target="_blank" class="btn btn-ghost btn-sm" style="text-decoration:none">XML</a>`:'—'}</td>
+        <td>${(x.tem_xml||x.storage_key)?`<a href="${BASE}/empresas/${S.id}/documentos/${x.id}/xml" target="_blank" class="btn btn-ghost btn-sm" style="text-decoration:none">XML</a>`:'—'}</td>
       </tr>`).join('')}</tbody>
     </table></div>`;
     document.getElementById('docs-p').innerHTML=`

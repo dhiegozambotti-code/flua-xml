@@ -24,3 +24,17 @@ def load_xml(storage_key: str) -> bytes:
     full_path = os.path.join(settings.storage_local_dir, storage_key)
     with open(full_path, "rb") as f:
         return f.read()
+
+
+def load_xml_doc(doc) -> bytes:
+    """Carrega o XML de um Documento: prioriza o banco (xml_gz), cai para disco.
+
+    Levanta FileNotFoundError se não houver XML em nenhuma das fontes.
+    """
+    xml_gz = getattr(doc, "xml_gz", None)
+    if xml_gz:
+        import gzip
+        return gzip.decompress(xml_gz)
+    if getattr(doc, "storage_key", None):
+        return load_xml(doc.storage_key)
+    raise FileNotFoundError("XML não disponível para este documento")

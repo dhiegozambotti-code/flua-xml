@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models import Documento
 from app.services.auth import get_organizacao_id as require_api_key
-from app.services.storage import load_xml
+from app.services.storage import load_xml_doc
 
 router = APIRouter(prefix="/documentos", tags=["documentos"])
 
@@ -92,9 +92,9 @@ def buscar_documento(
 
 def _to_out(doc: Documento, include_xml: bool = False) -> DocumentoOut:
     xml_b64 = None
-    if include_xml and doc.storage_key:
+    if include_xml:
         try:
-            xml_bytes = load_xml(doc.storage_key)
+            xml_bytes = load_xml_doc(doc)
             xml_b64 = base64.b64encode(xml_bytes).decode()
         except Exception:
             pass

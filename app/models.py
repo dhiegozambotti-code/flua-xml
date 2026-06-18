@@ -97,6 +97,9 @@ class Documento(Base):
     dh_emissao: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), index=True)
     situacao: Mapped[Optional[str]] = mapped_column(String(20))  # autorizada | cancelada | denegada
     storage_key: Mapped[Optional[str]] = mapped_column(Text)
+    # XML completo comprimido (gzip) — armazenamento persistente no Postgres,
+    # imune a redeploys (o disco local da Railway é efêmero).
+    xml_gz: Mapped[Optional[bytes]] = mapped_column(LargeBinary)
     sha256: Mapped[Optional[str]] = mapped_column(String(64))
     capturado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     # Campos específicos CT-e
@@ -137,6 +140,11 @@ class Documento(Base):
     mdfe_qtd_nfe: Mapped[Optional[int]] = mapped_column(Integer)
 
     empresa: Mapped["Empresa"] = relationship(back_populates="documentos")
+
+    @property
+    def tem_xml(self) -> bool:
+        """True se o XML está disponível (no banco ou em disco)."""
+        return bool(self.xml_gz or self.storage_key)
 
     __table_args__ = (
         __import__("sqlalchemy").UniqueConstraint("empresa_id", "modelo", "nsu", name="uq_documento_empresa_modelo_nsu"),

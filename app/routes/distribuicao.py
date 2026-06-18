@@ -17,7 +17,7 @@ from app.models import CapturaLog, DistribuicaoEstado, Documento, Empresa, Manif
 from app.services.alertas import alertas_empresa
 from app.services.manifestacao import enfileirar as enfileirar_manifestacao
 from app.services.orquestrador import poll_empresa_modelo
-from app.services.storage import load_xml
+from app.services.storage import load_xml, load_xml_doc
 
 router = APIRouter(tags=["distribuicao"])
 
@@ -60,6 +60,7 @@ class DocumentoOut(BaseModel):
     dh_emissao: Optional[datetime]
     situacao: Optional[str]
     storage_key: Optional[str]
+    tem_xml: bool = False
     sha256: Optional[str]
     capturado_em: datetime
     # CT-e
@@ -328,12 +329,10 @@ def download_xml_por_id(empresa_id: str, doc_id: str, db: Session = Depends(get_
     doc = db.get(Documento, doc_id)
     if not doc or doc.empresa_id != empresa_id:
         raise HTTPException(404, "Documento não encontrado")
-    if not doc.storage_key:
-        raise HTTPException(404, "XML não disponível para este documento")
     try:
-        xml_bytes = load_xml(doc.storage_key)
+        xml_bytes = load_xml_doc(doc)
     except FileNotFoundError:
-        raise HTTPException(404, "Arquivo XML não encontrado no storage")
+        raise HTTPException(404, "XML não disponível para este documento")
     filename = f"{doc.chave or doc_id}.xml"
     return Response(
         content=xml_bytes,
@@ -348,12 +347,10 @@ def download_xml_por_chave(chave: str, db: Session = Depends(get_db)):
     doc = db.query(Documento).filter_by(chave=chave).first()
     if not doc:
         raise HTTPException(404, "Documento não encontrado")
-    if not doc.storage_key:
-        raise HTTPException(404, "XML não disponível")
     try:
-        xml_bytes = load_xml(doc.storage_key)
+        xml_bytes = load_xml_doc(doc)
     except FileNotFoundError:
-        raise HTTPException(404, "Arquivo XML não encontrado no storage")
+        raise HTTPException(404, "XML não disponível")
     return Response(
         content=xml_bytes,
         media_type="application/xml",
@@ -393,7 +390,7 @@ def exportar_zip(
     q = (
         db.query(Documento)
         .filter_by(empresa_id=empresa_id)
-        .filter(Documento.storage_key.isnot(None))
+        .filter((Documento.xml_gz.isnot(None)) | (Documento.storage_key.isnot(None)))
         .filter(Documento.dh_emissao >= de)
         .filter(Documento.dh_emissao <= ate)
         .order_by(Documento.dh_emissao)
@@ -408,7 +405,7 @@ def exportar_zip(
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         for doc in docs:
             try:
-                xml_bytes = load_xml(doc.storage_key)
+                xml_bytes = load_xml_doc(doc)
                 nome = f"{doc.modelo}/{doc.chave or doc.id}.xml"
                 zf.writestr(nome, xml_bytes)
             except Exception:

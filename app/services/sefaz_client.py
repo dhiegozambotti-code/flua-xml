@@ -228,6 +228,8 @@ class NFeSoapClient:
                 content=body.encode("utf-8"),
                 headers={"Content-Type": content_type},
             )
+        if resp.status_code >= 400:
+            logger.error("SEFAZ HTTP %s — body: %s", resp.status_code, resp.text[:2000])
         resp.raise_for_status()
         return _parse_response(resp.content, self.modelo)
 

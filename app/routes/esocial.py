@@ -38,13 +38,28 @@ def _pick(xml: str, tag: str) -> str | None:
     return m.group(1).strip() if m else None
 
 
+_DNS_SERVERS = [
+    "200.160.0.8",   # NIC.br / Registro.br (Brasil)
+    "200.160.2.3",   # NIC.br secundário
+    "200.204.0.10",  # Vivo/Telesp (Brasil)
+    "8.8.8.8",       # Google (fallback)
+    "1.1.1.1",       # Cloudflare (fallback)
+]
+
+
 def _resolve_ip(hostname: str) -> str:
-    r = _dns.Resolver(configure=False)
-    r.nameservers = ["8.8.8.8", "1.1.1.1"]
-    r.timeout = 5
-    r.lifetime = 10
-    answers = r.resolve(hostname, "A")
-    return str(answers[0])
+    last_err: Exception = RuntimeError("nenhum resolver disponível")
+    for ns in _DNS_SERVERS:
+        try:
+            r = _dns.Resolver(configure=False)
+            r.nameservers = [ns]
+            r.timeout = 4
+            r.lifetime = 8
+            answers = r.resolve(hostname, "A")
+            return str(answers[0])
+        except Exception as e:
+            last_err = e
+    raise RuntimeError(f"Não foi possível resolver {hostname}: {last_err}")
 
 
 def _soap_post(host: str, path: str, action: str, envelope: str, cert_pem: str, key_pem: str) -> str:

@@ -409,7 +409,9 @@ def run_sweep(db: Session) -> None:
         db.query(DistribuicaoEstado)
         .join(Empresa, DistribuicaoEstado.empresa_id == Empresa.id)
         .filter(Empresa.ativo.is_(True))
-        .filter(DistribuicaoEstado.status.in_(["ativo", "sem_documentos"]))
+        # bloqueado_656 é incluído: _poll_estado verifica se o bloqueio já expirou
+        # (sem isto, o estado ficaria preso para sempre após o bloqueio terminar)
+        .filter(DistribuicaoEstado.status.in_(["ativo", "sem_documentos", "bloqueado_656"]))
         .all()
     )
 

@@ -6,6 +6,7 @@ import os
 import re
 import ssl
 import tempfile
+import urllib.error
 import urllib.request
 from typing import Literal
 
@@ -76,8 +77,12 @@ def _soap_post(host: str, path: str, action: str, envelope: str, cert_pem: str, 
                 "Host": host,
             },
         )
-        with urllib.request.urlopen(req, context=ctx, timeout=60) as resp:
-            return resp.read().decode("utf-8")
+        try:
+            with urllib.request.urlopen(req, context=ctx, timeout=60) as resp:
+                return resp.read().decode("utf-8")
+        except urllib.error.HTTPError as e:
+            # SOAP Fault vem como HTTP 500 — lemos o body para extrair o erro
+            return e.read().decode("utf-8")
     finally:
         os.unlink(cert_path)
         os.unlink(key_path)

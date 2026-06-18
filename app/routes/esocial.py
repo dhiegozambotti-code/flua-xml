@@ -120,11 +120,12 @@ def enviar(body: EnviarInput, authorization: str | None = Header(default=None)):
     envelope = _soap_envelope(NS_ENVIO, soap_body)
     try:
         bruto = _soap_post(host, path, action, envelope, body.cert_pem, body.key_pem)
+        descricao = _pick(bruto, "descResposta") or _pick(bruto, "faultstring") or _pick(bruto, "Text")
         return {
             "bruto": bruto,
             "protocolo": _pick(bruto, "protocoloEnvio") or _pick(bruto, "protocolo"),
             "codigo": _pick(bruto, "cdResposta"),
-            "descricao": _pick(bruto, "descResposta"),
+            "descricao": descricao,
         }
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))

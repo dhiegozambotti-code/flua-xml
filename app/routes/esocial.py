@@ -28,15 +28,11 @@ NS_CONSULTA_SCHEMA = "http://www.esocial.gov.br/schema/lote/eventos/envio/consul
 
 
 def _soap_envelope(ns: str, action: str, to: str, body: str) -> str:
-    # SOAP 1.1 envelope + WS-Addressing headers (basicHttpBinding + WSAddressing no WCF do eSocial)
+    # SOAP 1.1 puro (basicHttpBinding do eSocial — despacho via header SOAPAction,
+    # sem WS-Addressing no runtime apesar do wsaw:Action no WSDL).
     return (
-        f'<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"'
-        f' xmlns:a="http://www.w3.org/2005/08/addressing" xmlns:v1="{ns}">'
-        f'<soapenv:Header>'
-        f'<a:Action soapenv:mustUnderstand="1">{action}</a:Action>'
-        f'<a:To soapenv:mustUnderstand="1">{to}</a:To>'
-        f'</soapenv:Header>'
-        f"<soapenv:Body>{body}</soapenv:Body></soapenv:Envelope>"
+        f'<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:v1="{ns}">'
+        f"<soapenv:Header/><soapenv:Body>{body}</soapenv:Body></soapenv:Envelope>"
     )
 
 

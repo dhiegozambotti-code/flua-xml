@@ -324,8 +324,13 @@ def buscar_documento(empresa_id: str, doc_id: str, db: Session = Depends(get_db)
 
 
 @router.get("/empresas/{empresa_id}/documentos/{doc_id}/xml")
-def download_xml_por_id(empresa_id: str, doc_id: str, db: Session = Depends(get_db)):
-    """Retorna o XML bruto do documento."""
+def download_xml_por_id(
+    empresa_id: str,
+    doc_id: str,
+    inline: bool = Query(False, description="true = abre no navegador; false = baixa"),
+    db: Session = Depends(get_db),
+):
+    """Retorna o XML bruto do documento. `inline=true` abre no navegador."""
     doc = db.get(Documento, doc_id)
     if not doc or doc.empresa_id != empresa_id:
         raise HTTPException(404, "Documento não encontrado")
@@ -334,10 +339,11 @@ def download_xml_por_id(empresa_id: str, doc_id: str, db: Session = Depends(get_
     except FileNotFoundError:
         raise HTTPException(404, "XML não disponível para este documento")
     filename = f"{doc.chave or doc_id}.xml"
+    disp = "inline" if inline else "attachment"
     return Response(
         content=xml_bytes,
         media_type="application/xml",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f'{disp}; filename="{filename}"'},
     )
 
 

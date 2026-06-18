@@ -542,6 +542,21 @@ tbody tr:hover td { background: var(--panel2); }
 .toast.info{ background: var(--panel2); border-color: var(--line2); color: var(--text); }
 @keyframes tin { from{transform:translateX(8px)scale(.97);opacity:0} to{transform:none;opacity:1} }
 
+/* ── Modal de detalhes do documento ── */
+.mdl-bg { position:fixed; inset:0; background:rgba(0,0,0,.6); backdrop-filter:blur(3px); z-index:9998; display:flex; align-items:center; justify-content:center; padding:24px; animation:fin .15s ease; }
+@keyframes fin { from{opacity:0} to{opacity:1} }
+.mdl { background:var(--panel); border:1px solid var(--line2); border-radius:var(--r); width:min(880px,100%); max-height:90vh; display:flex; flex-direction:column; box-shadow:0 24px 64px rgba(0,0,0,.6); overflow:hidden; }
+.mdl-top { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--line); }
+.mdl-title { font-family:var(--cond); font-weight:700; font-size:15px; letter-spacing:.5px; color:var(--text); }
+.mdl-x { cursor:pointer; color:var(--text2); font-size:20px; line-height:1; background:none; border:none; padding:4px 8px; border-radius:6px; }
+.mdl-x:hover { background:var(--panel2); color:var(--text); }
+.mdl-body { padding:18px 20px; overflow:auto; }
+.mdl-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px 20px; margin-bottom:18px; }
+.mdl-f-lbl { font-size:10px; text-transform:uppercase; letter-spacing:.5px; color:var(--text3); }
+.mdl-f-val { font-size:13px; color:var(--text); margin-top:2px; word-break:break-word; }
+.mdl-xml { background:#0a0e14; border:1px solid var(--line); border-radius:8px; padding:14px; font-family:var(--mono); font-size:11px; line-height:1.5; color:#9cdcfe; white-space:pre; overflow:auto; max-height:380px; }
+.mdl-foot { display:flex; gap:10px; justify-content:flex-end; padding:14px 20px; border-top:1px solid var(--line); }
+
 .spinner {
   width: 13px; height: 13px;
   border: 2px solid rgba(255,255,255,.15);
@@ -678,6 +693,7 @@ html[data-theme="light"] .theme-btn::after {
 </div>
 
 <div id="toast-box"></div>
+<div id="modal-root"></div>
 
 <script>
 const BASE = '';
@@ -1058,7 +1074,7 @@ async function loadDocs() {
         <td class="mono" style="text-align:right">${x.valor_total?'R$ '+Number(x.valor_total).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</td>
         <td style="color:var(--text2);font-size:11px">${dt(x.capturado_em)}</td>
         <td class="mono" style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${x.chave||''}">${x.chave?x.chave.slice(0,18)+'…':'—'}</td>
-        <td>${(x.tem_xml||x.storage_key)?`<a href="${BASE}/empresas/${S.id}/documentos/${x.id}/xml" target="_blank" class="btn btn-ghost btn-sm" style="text-decoration:none">XML</a>`:'—'}</td>
+        <td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick='verDetalhes(${JSON.stringify(JSON.stringify(x))})'>👁 Detalhes</button></td>
       </tr>`).join('')}</tbody>
     </table></div>`;
     document.getElementById('docs-p').innerHTML=`
@@ -1067,6 +1083,64 @@ async function loadDocs() {
       <button class="btn btn-ghost btn-sm" onclick="S.off+=15;loadDocs()" ${d.length<15?'disabled':''}>Próximo →</button>`;
   } catch(e){toast('Erro: '+e.message,'err');}
 }
+
+function fmtXml(xml){
+  // pretty-print simples por indentação de tags
+  let out='', pad=0;
+  xml=xml.replace(/>\s*</g,'>\n<');
+  xml.split('\n').forEach(node=>{
+    if(/^<\/\w/.test(node)) pad=Math.max(0,pad-1);
+    out+='  '.repeat(pad)+node+'\n';
+    if(/^<\w[^>]*[^\/]>$/.test(node)&&!/^<(\?|!)/.test(node)) pad++;
+  });
+  return out.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function verDetalhes(json){
+  const x=typeof json==='string'?JSON.parse(json):json;
+  const reais=v=>v?'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—';
+  const dt=v=>v?new Date(v).toLocaleString('pt-BR'):'—';
+  const xmlUrl=`${BASE}/empresas/${S.id}/documentos/${x.id}/xml`;
+  const F=(l,v)=>`<div><div class="mdl-f-lbl">${l}</div><div class="mdl-f-val">${v||'—'}</div></div>`;
+  document.getElementById('modal-root').innerHTML=`
+  <div class="mdl-bg" onclick="if(event.target===this)fecharModal()">
+    <div class="mdl">
+      <div class="mdl-top">
+        <div class="mdl-title">${(x.modelo||'').toUpperCase()} ${x.numero?'Nº '+x.numero:''} · ${x.tipo||''}</div>
+        <button class="mdl-x" onclick="fecharModal()">✕</button>
+      </div>
+      <div class="mdl-body">
+        <div class="mdl-grid">
+          ${F('Situação',x.situacao)}${F('Número/Série',(x.numero||'—')+(x.serie?' / '+x.serie:''))}
+          ${F('Emitente',x.emit_razao_social)}${F('CNPJ Emitente',x.emit_cnpj)}
+          ${F('CNPJ Destinatário',x.dest_cnpj)}${F('Valor Total',reais(x.valor_total))}
+          ${F('Emissão',x.dh_emissao?new Date(x.dh_emissao).toLocaleDateString('pt-BR'):'—')}${F('Capturado em',dt(x.capturado_em))}
+          ${F('NSU',x.nsu)}${F('Chave',`<span class="mono">${x.chave||'—'}</span>`)}
+        </div>
+        <div class="mdl-f-lbl" style="margin-bottom:6px">XML</div>
+        <div class="mdl-xml" id="mdl-xml-box">Carregando XML…</div>
+      </div>
+      <div class="mdl-foot">
+        ${(x.tem_xml||x.storage_key)?`
+          <a class="btn btn-ghost btn-sm" href="${xmlUrl}?inline=1" target="_blank" style="text-decoration:none">↗ Abrir em nova aba</a>
+          <a class="btn btn-teal btn-sm" href="${xmlUrl}" style="text-decoration:none">⬇ Baixar XML</a>`:''}
+        <button class="btn btn-ghost btn-sm" onclick="fecharModal()">Fechar</button>
+      </div>
+    </div>
+  </div>`;
+  // carrega o XML inline
+  const box=document.getElementById('mdl-xml-box');
+  if(x.tem_xml||x.storage_key){
+    try{
+      const r=await fetch(xmlUrl+'?inline=1');
+      if(!r.ok) throw new Error('indisponível');
+      box.innerHTML=fmtXml(await r.text());
+    }catch(e){ box.textContent='XML não disponível para este documento.'; }
+  } else { box.textContent='XML não disponível para este documento.'; }
+}
+
+function fecharModal(){ document.getElementById('modal-root').innerHTML=''; }
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') fecharModal(); });
 
 /* ───────────── SAÚDE ───────────── */
 async function renderSaude() {

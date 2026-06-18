@@ -250,33 +250,45 @@ def _poll_estado(db: Session, estado: DistribuicaoEstado, empresa: Empresa,
     estado.endpoint_usado = endpoint
     db.commit()
 
-    for attempt in range(settings.polling_max_retries):
-        t0 = time.time()
-        try:
-            resp = client.dist_nsu(
-                uf=empresa.uf or "SP",
-                cnpj=empresa.cnpj,
-                ult_nsu=estado.ult_nsu,
-            )
-        except Exception as exc:
-            latencia = int((time.time() - t0) * 1000)
-            logger.warning(
-                "Erro na chamada SEFAZ (tentativa %d/%d) empresa=%s fluxo=%s: %s",
-                attempt + 1, settings.polling_max_retries,
-                estado.empresa_id, estado.tipo_fluxo, exc,
-            )
-            _log_captura(db, estado.empresa_id, estado.modelo, "distNSU", 0, str(exc), 0, latencia)
-            if attempt < settings.polling_max_retries - 1:
-                time.sleep(2 ** (attempt + 1))
-                continue
+    # Loop de drenagem: enquanto o SEFAZ retornar cStat=138 com novos NSUs,
+    # busca lotes consecutivos no mesmo ciclo (permitido enquanto há documentos).
+    # Teto de segurança evita loop infinito caso ultNSU não avance.
+    MAX_LOTES = 250  # ~12500 docs por ciclo
+    for _lote in range(MAX_LOTES):
+        # --- chamada SEFAZ com retry para erros transitórios ---
+        resp = None
+        for attempt in range(settings.polling_max_retries):
+            t0 = time.time()
+            try:
+                resp = client.dist_nsu(
+                    uf=empresa.uf or "SP",
+                    cnpj=empresa.cnpj,
+                    ult_nsu=estado.ult_nsu,
+                )
+                break
+            except Exception as exc:
+                latencia = int((time.time() - t0) * 1000)
+                logger.warning(
+                    "Erro na chamada SEFAZ (tentativa %d/%d) empresa=%s fluxo=%s: %s",
+                    attempt + 1, settings.polling_max_retries,
+                    estado.empresa_id, estado.tipo_fluxo, exc,
+                )
+                _log_captura(db, estado.empresa_id, estado.modelo, "distNSU", 0, str(exc), 0, latencia)
+                if attempt < settings.polling_max_retries - 1:
+                    time.sleep(2 ** (attempt + 1))
+                    continue
+                return
+        if resp is None:
             return
 
+        now = _now()
         latencia = int((time.time() - t0) * 1000)
         cstat = resp["cstat"]
         _log_captura(db, estado.empresa_id, estado.modelo, "distNSU", cstat,
                      resp["xmotivo"], len(resp["docs"]), latencia)
 
         if cstat == 138:
+            nsu_anterior = estado.ult_nsu
             for doc_item in resp["docs"]:
                 nsu = doc_item["nsu"]
                 if _doc_exists(db, estado.empresa_id, estado.modelo, nsu, None):
@@ -300,14 +312,15 @@ def _poll_estado(db: Session, estado: DistribuicaoEstado, empresa: Empresa,
             estado.max_nsu = resp["max_nsu"]
             estado.status = "ativo"
             estado.ultimo_sucesso = now
-
-            if estado.ult_nsu >= estado.max_nsu:
-                estado.proximo_polling = now + timedelta(hours=1)
-
             db.commit()
 
-            if estado.ult_nsu >= estado.max_nsu:
+            # Caught up ou ultNSU não avançou (proteção contra loop) → encerra ciclo
+            if estado.ult_nsu >= estado.max_nsu or estado.ult_nsu <= nsu_anterior:
+                estado.proximo_polling = now + timedelta(hours=1)
+                db.commit()
                 break
+            # Há mais documentos no backlog → busca o próximo lote imediatamente
+            continue
 
         elif cstat == 137:
             estado.status = "sem_documentos"
@@ -338,8 +351,6 @@ def _poll_estado(db: Session, estado: DistribuicaoEstado, empresa: Empresa,
                 cstat, estado.empresa_id, estado.modelo, estado.tipo_fluxo, resp["xmotivo"],
             )
             break
-
-        break  # sai do loop de retry ao processar com sucesso
 
 
 def poll_empresa_modelo(db: Session, empresa_id: str, modelo: str,

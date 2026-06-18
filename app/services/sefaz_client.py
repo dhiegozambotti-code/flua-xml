@@ -36,16 +36,28 @@ for _entry in os.environ.get("SEFAZ_HOSTS_OVERRIDE", "").split(","):
         _h, _ip = _entry.strip().split(":", 1)
         _HOSTS_OVERRIDE[_h.strip()] = _ip.strip()
 
-# Monkey-patch socket.getaddrinfo para resolver hostnames SEFAZ diretamente
+# Monkey-patch socket.getaddrinfo E socket.create_connection para cobrir
+# todos os caminhos de resolução usados por httpx/httpcore no Railway.
 _orig_getaddrinfo = socket.getaddrinfo
 
 def _patched_getaddrinfo(host, port, *args, **kwargs):
     if isinstance(host, str) and host in _HOSTS_OVERRIDE:
-        logger.debug("DNS override %s → %s", host, _HOSTS_OVERRIDE[host])
+        logger.debug("DNS override (getaddrinfo) %s → %s", host, _HOSTS_OVERRIDE[host])
         host = _HOSTS_OVERRIDE[host]
     return _orig_getaddrinfo(host, port, *args, **kwargs)
 
 socket.getaddrinfo = _patched_getaddrinfo
+
+_orig_create_connection = socket.create_connection
+
+def _patched_create_connection(address, *args, **kwargs):
+    host, port = address
+    if isinstance(host, str) and host in _HOSTS_OVERRIDE:
+        logger.debug("DNS override (create_connection) %s → %s", host, _HOSTS_OVERRIDE[host])
+        host = _HOSTS_OVERRIDE[host]
+    return _orig_create_connection((host, port), *args, **kwargs)
+
+socket.create_connection = _patched_create_connection
 
 _NS_NFE  = "http://www.portalfiscal.inf.br/nfe"
 _NS_MDFE = "http://www.portalfiscal.inf.br/mdfe"

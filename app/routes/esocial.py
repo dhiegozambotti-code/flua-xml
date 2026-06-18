@@ -28,9 +28,10 @@ NS_CONSULTA_SCHEMA = "http://www.esocial.gov.br/schema/lote/eventos/envio/consul
 
 
 def _soap_envelope(ns: str, body: str) -> str:
+    # SOAP 1.2 (wsHttpBinding WCF do eSocial)
     return (
-        f'<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:v1="{ns}">'
-        f"<soapenv:Header/><soapenv:Body>{body}</soapenv:Body></soapenv:Envelope>"
+        f'<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:v1="{ns}">'
+        f"<s:Header/><s:Body>{body}</s:Body></s:Envelope>"
     )
 
 
@@ -71,8 +72,7 @@ def _soap_post(host: str, path: str, action: str, envelope: str, cert_pem: str, 
             data=body_bytes,
             method="POST",
             headers={
-                "Content-Type": "text/xml;charset=UTF-8",
-                "SOAPAction": f'"{action}"',
+                "Content-Type": f'application/soap+xml;charset=UTF-8;action="{action}"',
                 "Content-Length": str(len(body_bytes)),
                 "Host": host,
             },

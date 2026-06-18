@@ -229,8 +229,8 @@ class NFeSoapClient:
                 headers={"Content-Type": content_type},
             )
         if resp.status_code >= 400:
-            logger.error("SEFAZ HTTP %s — body: %s", resp.status_code, resp.text[:2000])
-        resp.raise_for_status()
+            body_snippet = resp.text[:1000].replace("\n", " ")
+            raise ValueError(f"SEFAZ HTTP {resp.status_code}: {body_snippet}")
         return _parse_response(resp.content, self.modelo)
 
     def dist_nsu(self, uf: str, cnpj: str, ult_nsu: int) -> Dict[str, Any]:

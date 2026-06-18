@@ -2,6 +2,7 @@
 builder = "NIXPACKS"
 
 [deploy]
+region = "southamerica-east1"
 startCommand = "bash start.sh"
 healthcheckPath = "/health"
 healthcheckTimeout = 30

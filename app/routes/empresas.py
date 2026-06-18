@@ -7,12 +7,33 @@ from app.config import settings
 from app.db import get_db
 from app.models import Certificado, Empresa
 from app.schemas import CertificadoOut, EmpresaCreate, EmpresaOut, EmpresaUpdate
-from app.services.crypto import encrypt_bytes
+from app.services.crypto import encrypt_bytes, decrypt_bytes
 
 from cryptography import x509
 from cryptography.hazmat.primitives.serialization import pkcs12
 
 router = APIRouter(prefix="/empresas", tags=["empresas"])
+
+
+@router.get("/{empresa_id}/certificado/diagnostico")
+def diagnostico_certificado(empresa_id: str, db: Session = Depends(get_db)):
+    """Diagnóstico: verifica se o certificado pode ser descriptografado."""
+    cert = db.query(Certificado).filter_by(empresa_id=empresa_id, status="ativo").order_by(Certificado.valido_ate.desc()).first()
+    if not cert:
+        return {"ok": False, "erro": "Nenhum certificado ativo encontrado"}
+    try:
+        key = settings.vault_master_key_bytes
+        key_len = len(key)
+    except Exception as e:
+        return {"ok": False, "erro": f"VAULT_MASTER_KEY inválida: {e}"}
+    try:
+        pfx = decrypt_bytes(cert.pfx_cifrado, key)
+        senha = decrypt_bytes(cert.senha_cifrada, key).decode()
+        from cryptography.hazmat.primitives.serialization import pkcs12 as pkcs12_mod
+        pk, c, _ = pkcs12_mod.load_key_and_certificates(pfx, senha.encode())
+        return {"ok": True, "key_len": key_len, "fingerprint": cert.fingerprint, "valido_ate": str(cert.valido_ate), "subject": str(c.subject)}
+    except Exception as e:
+        return {"ok": False, "key_len": key_len, "fingerprint": cert.fingerprint, "erro": str(e)}
 
 
 @router.get("", response_model=List[EmpresaOut])

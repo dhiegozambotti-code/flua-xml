@@ -888,6 +888,24 @@ async function renderDistribuicao() {
         <button class="btn btn-teal btn-full" id="btn-poll" onclick="poll()">▶ Consultar SEFAZ</button>
         <div id="poll-out"></div>
       </div>
+      <div class="card" style="margin-top:18px">
+        <div class="card-top"><div class="card-label">Janela de Busca</div></div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px">Restringe o horário em que o sistema consulta o SEFAZ. Vazio = 24h. Ex: noturno 20→6.</div>
+        <div class="row2" style="margin-bottom:14px">
+          <div class="fg"><label>Início (h)</label>
+            <input id="ji" type="number" min="0" max="23" placeholder="—">
+          </div>
+          <div class="fg"><label>Fim (h)</label>
+            <input id="jf" type="number" min="0" max="23" placeholder="—">
+          </div>
+        </div>
+        <div class="actions" style="margin-bottom:10px">
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('ji').value=20;document.getElementById('jf').value=6">🌙 Noturno (20→6)</button>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('ji').value='';document.getElementById('jf').value=''">⏱ 24h</button>
+        </div>
+        <button class="btn btn-teal btn-full" id="btn-jan" onclick="salvaJanela()">💾 Salvar janela</button>
+        <div id="jan-out" style="font-size:12px;color:var(--text2);margin-top:8px"></div>
+      </div>
     </div>
     <div class="card">
       <div class="card-top">
@@ -898,6 +916,35 @@ async function renderDistribuicao() {
     </div>
   </div>`;
   loadDist();
+  loadJanela();
+}
+
+async function loadJanela() {
+  try {
+    const e=await api('GET',`/empresas/${S.id}`);
+    if(e.polling_janela_inicio!=null) document.getElementById('ji').value=e.polling_janela_inicio;
+    if(e.polling_janela_fim!=null) document.getElementById('jf').value=e.polling_janela_fim;
+    descreveJanela(e.polling_janela_inicio,e.polling_janela_fim);
+  } catch(e){}
+}
+
+function descreveJanela(i,f){
+  const out=document.getElementById('jan-out'); if(!out) return;
+  if(i==null||f==null||i===f){out.innerHTML='Busca ativa <b>24h por dia</b>.';return;}
+  out.innerHTML=`Busca ativa das <b>${String(i).padStart(2,'0')}h</b> às <b>${String(f).padStart(2,'0')}h</b> (horário de Brasília).`;
+}
+
+async function salvaJanela() {
+  const iv=document.getElementById('ji').value, fv=document.getElementById('jf').value;
+  const i=iv===''?null:parseInt(iv,10), f=fv===''?null:parseInt(fv,10);
+  if((i!=null&&(i<0||i>23))||(f!=null&&(f<0||f>23))){toast('Horas devem estar entre 0 e 23','err');return;}
+  const btn=document.getElementById('btn-jan'); btn.disabled=true;
+  try {
+    await api('PATCH',`/empresas/${S.id}`,{polling_janela_inicio:i,polling_janela_fim:f});
+    descreveJanela(i,f);
+    toast('Janela de busca salva');
+  } catch(e){toast('Erro: '+e.message,'err');}
+  finally{btn.disabled=false;}
 }
 
 async function loadDist() {
@@ -983,16 +1030,22 @@ async function loadDocs() {
     const el=document.getElementById('docs-t');
     if(!d.length&&S.off===0){el.innerHTML='<div class="empty"><div class="empty-ico">📄</div><div class="empty-txt">Nenhum documento capturado</div></div>';return;}
     const sb=s=>{if(!s)return'';const m={autorizada:'b-teal',cancelada:'b-red',denegada:'b-red',evento:'b-blue',desconhecida:'b-gray'};return`<span class="badge ${m[s]||'b-gray'}">${s}</span>`;};
+    const dt=v=>v?new Date(v).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'—';
+    const dd=v=>v?new Date(v).toLocaleDateString('pt-BR'):'—';
     el.innerHTML=`<div class="tbl-wrap"><table>
-      <thead><tr><th>Modelo</th><th>Tipo</th><th>Situação</th><th>Chave</th><th>Emitente</th><th>Valor</th><th>Emissão</th></tr></thead>
+      <thead><tr><th>Tipo</th><th>Nº</th><th>Rz. Emit.</th><th>CNPJ Emit.</th><th>Emissão</th><th>CNPJ Dest.</th><th>Situação</th><th style="text-align:right">Valor</th><th>Download</th><th>Chave</th><th></th></tr></thead>
       <tbody>${d.map(x=>`<tr>
-        <td><span class="badge b-blue">${x.modelo}</span></td>
-        <td><span class="badge b-gray">${x.tipo}</span></td>
-        <td>${sb(x.situacao)||'—'}</td>
-        <td class="mono" style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${x.chave||''}">${x.chave?x.chave.slice(0,22)+'…':'—'}</td>
+        <td><span class="badge b-blue">${x.modelo}</span> <span class="badge b-gray">${x.tipo}</span></td>
+        <td class="mono">${x.numero||'—'}${x.serie?'<span style="color:var(--text2)">/'+x.serie+'</span>':''}</td>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${x.emit_razao_social||''}">${x.emit_razao_social||'—'}</td>
         <td class="mono">${x.emit_cnpj||'—'}</td>
+        <td style="color:var(--text2)">${dd(x.dh_emissao)}</td>
+        <td class="mono">${x.dest_cnpj||'—'}</td>
+        <td>${sb(x.situacao)||'—'}</td>
         <td class="mono" style="text-align:right">${x.valor_total?'R$ '+Number(x.valor_total).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</td>
-        <td style="color:var(--text2)">${x.dh_emissao?new Date(x.dh_emissao).toLocaleDateString('pt-BR'):'—'}</td>
+        <td style="color:var(--text2);font-size:11px">${dt(x.capturado_em)}</td>
+        <td class="mono" style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${x.chave||''}">${x.chave?x.chave.slice(0,18)+'…':'—'}</td>
+        <td>${x.storage_key?`<a href="/empresas/${S.id}/documentos/${x.id}/xml" target="_blank" class="btn btn-ghost btn-sm" style="text-decoration:none">XML</a>`:'—'}</td>
       </tr>`).join('')}</tbody>
     </table></div>`;
     document.getElementById('docs-p').innerHTML=`

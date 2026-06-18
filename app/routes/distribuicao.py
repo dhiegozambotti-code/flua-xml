@@ -51,7 +51,10 @@ class DocumentoOut(BaseModel):
     nsu: int
     schema_xsd: Optional[str]
     chave: Optional[str]
+    numero: Optional[str] = None
+    serie: Optional[str] = None
     emit_cnpj: Optional[str]
+    emit_razao_social: Optional[str] = None
     dest_cnpj: Optional[str]
     valor_total: Optional[float]
     dh_emissao: Optional[datetime]

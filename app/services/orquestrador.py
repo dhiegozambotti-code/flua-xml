@@ -414,6 +414,28 @@ def poll_empresa_modelo(db: Session, empresa_id: str, modelo: str,
         _poll_estado(db, estado, empresa, pfx_bytes, senha)
 
 
+# Brasil não usa horário de verão desde 2019 → offset fixo UTC-3.
+_BR_OFFSET = timedelta(hours=-3)
+
+
+def dentro_janela_polling(empresa: Empresa, agora_utc: Optional[datetime] = None) -> bool:
+    """Verifica se o horário atual (BRT) está dentro da janela de polling da empresa.
+
+    Ambos os limites nulos (ou iguais) → 24h. Suporta janela que cruza a meia-noite
+    (ex: inicio=20, fim=6 → das 20h às 6h).
+    """
+    ini = empresa.polling_janela_inicio
+    fim = empresa.polling_janela_fim
+    if ini is None or fim is None or ini == fim:
+        return True
+    agora_utc = agora_utc or _now()
+    hora = (agora_utc + _BR_OFFSET).hour
+    if ini < fim:
+        return ini <= hora < fim
+    # janela cruza a meia-noite
+    return hora >= ini or hora < fim
+
+
 def run_sweep(db: Session) -> None:
     """Varre todos os estados de distribuição elegíveis e processa manifestações pendentes."""
     from app.services.manifestacao import enviar_pendentes
@@ -428,7 +450,12 @@ def run_sweep(db: Session) -> None:
         .all()
     )
 
+    agora = _now()
     for estado in estados:
+        # Respeita a janela de polling (consulta noturna) configurada na empresa
+        empresa = db.get(Empresa, estado.empresa_id)
+        if empresa and not dentro_janela_polling(empresa, agora):
+            continue
         try:
             poll_empresa_modelo(
                 db, estado.empresa_id, estado.modelo, estado.tipo_fluxo

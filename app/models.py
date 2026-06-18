@@ -22,6 +22,10 @@ class Empresa(Base):
     uf: Mapped[Optional[str]] = mapped_column(String(2))
     regime: Mapped[Optional[str]] = mapped_column(String(20))  # simples | presumido | normal
     ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Janela de polling (consulta noturna): horas 0–23. Ambos nulos = 24h.
+    # Suporta janela que cruza a meia-noite (ex: inicio=20, fim=6).
+    polling_janela_inicio: Mapped[Optional[int]] = mapped_column(Integer)
+    polling_janela_fim: Mapped[Optional[int]] = mapped_column(Integer)
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     certificados: Mapped[List["Certificado"]] = relationship(back_populates="empresa")

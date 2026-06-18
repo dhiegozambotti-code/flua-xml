@@ -19,6 +19,8 @@ class EmpresaOut(BaseModel):
     uf: Optional[str]
     regime: Optional[str]
     ativo: bool
+    polling_janela_inicio: Optional[int] = None
+    polling_janela_fim: Optional[int] = None
     criado_em: datetime
 
     model_config = {"from_attributes": True}
@@ -30,6 +32,8 @@ class EmpresaUpdate(BaseModel):
     uf: Optional[str] = None
     regime: Optional[str] = None
     ativo: Optional[bool] = None
+    polling_janela_inicio: Optional[int] = None
+    polling_janela_fim: Optional[int] = None
 
 
 class CertificadoOut(BaseModel):

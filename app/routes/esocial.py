@@ -27,11 +27,17 @@ NS_CONSULTA = "http://www.esocial.gov.br/servicos/empregador/lote/eventos/envio/
 NS_CONSULTA_SCHEMA = "http://www.esocial.gov.br/schema/lote/eventos/envio/consulta/retornoProcessamento/v1_0_0"
 
 
-def _soap_envelope(ns: str, body: str) -> str:
-    # SOAP 1.2 (wsHttpBinding WCF do eSocial)
+def _soap_envelope(ns: str, action: str, to: str, body: str) -> str:
+    # SOAP 1.2 + WS-Addressing (obrigatório para wsHttpBinding WCF do eSocial)
+    WSA = "http://www.w3.org/2005/08/addressing"
     return (
-        f'<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:v1="{ns}">'
-        f"<s:Header/><s:Body>{body}</s:Body></s:Envelope>"
+        f'<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"'
+        f' xmlns:a="http://www.w3.org/2005/08/addressing" xmlns:v1="{ns}">'
+        f'<s:Header>'
+        f'<a:Action s:mustUnderstand="1">{action}</a:Action>'
+        f'<a:To s:mustUnderstand="1">{to}</a:To>'
+        f'</s:Header>'
+        f"<s:Body>{body}</s:Body></s:Envelope>"
     )
 
 
@@ -115,9 +121,10 @@ def enviar(body: EnviarInput, authorization: str | None = Header(default=None)):
     _check_auth(authorization)
     host = HOST[body.ambiente]
     path = "/servicos/empregador/enviarloteeventos/WsEnviarLoteEventos.svc"
-    action = f"{NS_ENVIO}/ServicoEnviarLoteEventos/EnviarLoteEventos"
+    action = f"{NS_ENVIO}/IServicoEnviarLoteEventos/EnviarLoteEventos"
+    to = f"https://{host}{path}"
     soap_body = f"<v1:EnviarLoteEventos><v1:loteEventos>{body.lote_xml}</v1:loteEventos></v1:EnviarLoteEventos>"
-    envelope = _soap_envelope(NS_ENVIO, soap_body)
+    envelope = _soap_envelope(NS_ENVIO, action, to, soap_body)
     try:
         bruto = _soap_post(host, path, action, envelope, body.cert_pem, body.key_pem)
         descricao = _pick(bruto, "descResposta") or _pick(bruto, "faultstring") or _pick(bruto, "Text")
@@ -136,13 +143,14 @@ def consultar(body: ConsultarInput, authorization: str | None = Header(default=N
     _check_auth(authorization)
     host = HOST[body.ambiente]
     path = "/servicos/empregador/consultarloteeventos/WsConsultarLoteEventos.svc"
-    action = f"{NS_CONSULTA}/ServicoConsultarLoteEventos/ConsultarLoteEventos"
+    action = f"{NS_CONSULTA}/IServicoConsultarLoteEventos/ConsultarLoteEventos"
+    to = f"https://{host}{path}"
     consulta = (
         f'<eSocial xmlns="{NS_CONSULTA_SCHEMA}" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
         f"<consultaLoteEventos><protocoloEnvio>{body.protocolo}</protocoloEnvio></consultaLoteEventos></eSocial>"
     )
     soap_body = f"<v1:ConsultarLoteEventos><v1:consulta>{consulta}</v1:consulta></v1:ConsultarLoteEventos>"
-    envelope = _soap_envelope(NS_CONSULTA, soap_body)
+    envelope = _soap_envelope(NS_CONSULTA, action, to, soap_body)
     try:
         bruto = _soap_post(host, path, action, envelope, body.cert_pem, body.key_pem)
         return {

@@ -966,8 +966,21 @@ async function loadDist() {
           <div><div class="ds-lbl">Gap</div><div class="ds-val" style="color:${gap>0?'var(--amber)':'var(--teal)'}">${gap.toLocaleString()}</div></div>
         </div>
         ${e.ultimo_sucesso?`<div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:10px">${new Date(e.ultimo_sucesso).toLocaleString('pt-BR')}</div>`:''}
+        <div class="actions" style="margin-top:12px">
+          ${e.status==='pausado'
+            ? `<button class="btn btn-teal btn-sm" onclick="togDist('${e.modelo}','${e.tipo_fluxo}','reativar')">▶ Reativar</button>`
+            : `<button class="btn btn-ghost btn-sm" onclick="togDist('${e.modelo}','${e.tipo_fluxo}','pausar')">⏸ Pausar</button>`}
+        </div>
       </div>`;
     }).join('');
+  } catch(e){toast('Erro: '+e.message,'err');}
+}
+
+async function togDist(m,f,acao) {
+  try {
+    await api('POST',`/empresas/${S.id}/distribuicao/${m}/${acao}?tipo_fluxo=${f}`);
+    toast(`${m.toUpperCase()} ${acao==='pausar'?'pausado':'reativado'}`);
+    loadDist();
   } catch(e){toast('Erro: '+e.message,'err');}
 }
 

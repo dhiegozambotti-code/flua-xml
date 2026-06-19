@@ -1,6 +1,8 @@
 """
 Proxy mTLS para os webservices do eSocial do governo federal.
-Usa dnspython para resolver gov.br via 8.8.8.8 (Railway não resolve .gov.br por padrão).
+O Railway não resolve .gov.br via getaddrinfo, então batemos direto no IP com header Host.
+Produção real usa hosts separados para envio e consulta (webservices.envio / webservices.consulta);
+o antigo webservices.esocial.gov.br foi desativado. Restrita usa um único host para ambos.
 """
 import os
 import re
@@ -10,17 +12,34 @@ import urllib.error
 import urllib.request
 from typing import Literal
 
-import dns.resolver as _dns
-
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/esocial", tags=["esocial"])
 
-HOST = {
-    1: "webservices.esocial.gov.br",
-    2: "webservices.producaorestrita.esocial.gov.br",
+# (ambiente, serviço) -> (host, ip). IPs sobrescrevíveis por env (sobrevivem a troca de IP sem deploy).
+ENDPOINTS = {
+    (1, "enviar"): (
+        "webservices.envio.esocial.gov.br",
+        os.getenv("ESOCIAL_ENVIO_PROD_IP", "189.9.104.164"),
+    ),
+    (1, "consultar"): (
+        "webservices.consulta.esocial.gov.br",
+        os.getenv("ESOCIAL_CONSULTA_PROD_IP", "189.9.104.163"),
+    ),
+    (2, "enviar"): (
+        "webservices.producaorestrita.esocial.gov.br",
+        os.getenv("ESOCIAL_RESTRITA_IP", "200.198.235.238"),
+    ),
+    (2, "consultar"): (
+        "webservices.producaorestrita.esocial.gov.br",
+        os.getenv("ESOCIAL_RESTRITA_IP", "200.198.235.238"),
+    ),
 }
+
+
+def _endpoint(ambiente: int, servico: str) -> tuple[str, str]:
+    return ENDPOINTS[(ambiente, servico)]
 
 NS_ENVIO = "http://www.esocial.gov.br/servicos/empregador/lote/eventos/envio/v1_1_0"
 NS_CONSULTA = "http://www.esocial.gov.br/servicos/empregador/lote/eventos/envio/consulta/retornoProcessamento/v1_1_0"
@@ -41,16 +60,7 @@ def _pick(xml: str, tag: str) -> str | None:
     return m.group(1).strip() if m else None
 
 
-# webservices.esocial.gov.br não tem registro público DNS (split-horizon SERPRO).
-# IP confirmado via resolução local no Brasil: 200.198.235.238 (mesmo servidor, Host header diferencia).
-_ESOCIAL_IP = "200.198.235.238"
-
-
-def _resolve_ip(hostname: str) -> str:
-    return _ESOCIAL_IP
-
-
-def _soap_post(host: str, path: str, action: str, envelope: str, cert_pem: str, key_pem: str) -> str:
+def _soap_post(host: str, ip: str, path: str, action: str, envelope: str, cert_pem: str, key_pem: str) -> str:
     with (
         tempfile.NamedTemporaryFile("w", suffix=".pem", delete=False) as cf,
         tempfile.NamedTemporaryFile("w", suffix=".pem", delete=False) as kf,
@@ -60,7 +70,6 @@ def _soap_post(host: str, path: str, action: str, envelope: str, cert_pem: str, 
         cert_path, key_path = cf.name, kf.name
 
     try:
-        ip = _resolve_ip(host)
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ctx.load_cert_chain(certfile=cert_path, keyfile=key_path)
         ctx.load_default_certs()
@@ -116,14 +125,14 @@ class ConsultarInput(BaseModel):
 @router.post("/enviar")
 def enviar(body: EnviarInput, authorization: str | None = Header(default=None)):
     _check_auth(authorization)
-    host = HOST[body.ambiente]
+    host, ip = _endpoint(body.ambiente, "enviar")
     path = "/servicos/empregador/enviarloteeventos/WsEnviarLoteEventos.svc"
     action = f"{NS_ENVIO}/ServicoEnviarLoteEventos/EnviarLoteEventos"
     to = f"https://{host}{path}"
     soap_body = f"<v1:EnviarLoteEventos><v1:loteEventos>{body.lote_xml}</v1:loteEventos></v1:EnviarLoteEventos>"
     envelope = _soap_envelope(NS_ENVIO, action, to, soap_body)
     try:
-        bruto = _soap_post(host, path, action, envelope, body.cert_pem, body.key_pem)
+        bruto = _soap_post(host, ip, path, action, envelope, body.cert_pem, body.key_pem)
         descricao = _pick(bruto, "descResposta") or _pick(bruto, "faultstring") or _pick(bruto, "Text")
         return {
             "bruto": bruto,
@@ -138,7 +147,7 @@ def enviar(body: EnviarInput, authorization: str | None = Header(default=None)):
 @router.post("/consultar")
 def consultar(body: ConsultarInput, authorization: str | None = Header(default=None)):
     _check_auth(authorization)
-    host = HOST[body.ambiente]
+    host, ip = _endpoint(body.ambiente, "consultar")
     path = "/servicos/empregador/consultarloteeventos/WsConsultarLoteEventos.svc"
     action = f"{NS_CONSULTA}/ServicoConsultarLoteEventos/ConsultarLoteEventos"
     to = f"https://{host}{path}"
@@ -149,7 +158,7 @@ def consultar(body: ConsultarInput, authorization: str | None = Header(default=N
     soap_body = f"<v1:ConsultarLoteEventos><v1:consulta>{consulta}</v1:consulta></v1:ConsultarLoteEventos>"
     envelope = _soap_envelope(NS_CONSULTA, action, to, soap_body)
     try:
-        bruto = _soap_post(host, path, action, envelope, body.cert_pem, body.key_pem)
+        bruto = _soap_post(host, ip, path, action, envelope, body.cert_pem, body.key_pem)
         return {
             "bruto": bruto,
             "codigo": _pick(bruto, "cdResposta"),

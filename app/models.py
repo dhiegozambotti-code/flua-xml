@@ -93,6 +93,9 @@ class Documento(Base):
     chave: Mapped[Optional[str]] = mapped_column(String(44), index=True)
     emit_cnpj: Mapped[Optional[str]] = mapped_column(String(14))
     dest_cnpj: Mapped[Optional[str]] = mapped_column(String(14))
+    # Direção do documento em relação à empresa (CNPJ): entrada (recebida) |
+    # saida (emitida pela própria empresa) | desconhecida.
+    direcao: Mapped[str] = mapped_column(String(12), nullable=False, default="entrada")
     valor_total: Mapped[Optional[float]] = mapped_column(Numeric(15, 2))
     dh_emissao: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), index=True)
     situacao: Mapped[Optional[str]] = mapped_column(String(20))  # autorizada | cancelada | denegada

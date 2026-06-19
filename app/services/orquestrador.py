@@ -96,12 +96,27 @@ def _doc_exists(db: Session, empresa_id: str, modelo: str, nsu: int, chave: Opti
     return False
 
 
-def _store_doc(db: Session, empresa_id: str, modelo: str, nsu: int, parsed: dict):
+def _classifica_direcao(empresa_cnpj: Optional[str], parsed: dict) -> str:
+    """entrada (recebida) | saida (emitida pela empresa) | desconhecida."""
+    cnpj = (empresa_cnpj or "").strip()
+    emit = (parsed.get("emit_cnpj") or "").strip()
+    dest = (parsed.get("dest_cnpj") or "").strip()
+    if cnpj and emit and emit == cnpj:
+        return "saida"
+    if cnpj and dest and dest == cnpj:
+        return "entrada"
+    # Sem destinatário (resumo) e emitente é terceiro → presume entrada (recebida)
+    return "entrada"
+
+
+def _store_doc(db: Session, empresa_id: str, modelo: str, nsu: int, parsed: dict,
+               empresa_cnpj: Optional[str] = None):
     chave = parsed.get("chave") or ""
     xml_bytes = parsed.get("xml_bytes", b"")
 
     # Usa modelo_doc do parser (detecta nfce/nfe dentro do procNFe)
     modelo_efetivo = parsed.get("modelo_doc") or modelo
+    direcao = _classifica_direcao(empresa_cnpj, parsed)
 
     storage_key = None
     if xml_bytes and chave:
@@ -141,6 +156,7 @@ def _store_doc(db: Session, empresa_id: str, modelo: str, nsu: int, parsed: dict
         chave=chave or None,
         emit_cnpj=parsed.get("emit_cnpj"),
         dest_cnpj=parsed.get("dest_cnpj"),
+        direcao=direcao,
         valor_total=valor,
         dh_emissao=dh,
         situacao=parsed.get("situacao"),
@@ -306,7 +322,8 @@ def _poll_estado(db: Session, estado: DistribuicaoEstado, empresa: Empresa,
                     continue
                 try:
                     parsed = parse_doczip(doc_item["schema"], doc_item["b64"])
-                    doc = _store_doc(db, estado.empresa_id, estado.modelo, nsu, parsed)
+                    doc = _store_doc(db, estado.empresa_id, estado.modelo, nsu, parsed,
+                                     empresa_cnpj=empresa.cnpj)
                     logger.info(
                         "Doc NSU=%s chave=%s tipo=%s fluxo=%s armazenado",
                         nsu, parsed.get("chave"), parsed.get("tipo"), estado.tipo_fluxo,

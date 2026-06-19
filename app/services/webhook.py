@@ -97,6 +97,7 @@ def evento_documento_capturado(
             "documento_id": doc.id,
             "modelo": doc.modelo,
             "tipo": doc.tipo,
+            "direcao": getattr(doc, "direcao", "entrada"),  # entrada | saida
             "chave": doc.chave,
             "situacao": doc.situacao,
             "valor_total": float(doc.valor_total) if doc.valor_total is not None else None,

@@ -48,6 +48,7 @@ class DocumentoOut(BaseModel):
     empresa_id: str
     modelo: str
     tipo: str
+    direcao: Optional[str] = None
     nsu: int
     schema_xsd: Optional[str]
     chave: Optional[str]
@@ -290,12 +291,14 @@ def listar_manifestacoes(
 
 # ---- endpoints de documentos ------------------------------------------------
 
-def _filtra_documentos(db, empresa_id, modelo, tipo, de, ate, emit_cnpj, dest_cnpj):
+def _filtra_documentos(db, empresa_id, modelo, tipo, de, ate, emit_cnpj, dest_cnpj, direcao=None):
     q = db.query(Documento).filter_by(empresa_id=empresa_id)
     if modelo:
         q = q.filter_by(modelo=modelo)
     if tipo:
         q = q.filter_by(tipo=tipo)
+    if direcao:
+        q = q.filter(Documento.direcao == direcao)
     if de:
         q = q.filter(Documento.dh_emissao >= de)
     if ate:
@@ -316,13 +319,14 @@ def listar_documentos(
     ate: Optional[datetime] = Query(default=None, description="Filtro de data de emissão (ISO8601)"),
     emit_cnpj: Optional[str] = Query(default=None, description="CNPJ do emitente"),
     dest_cnpj: Optional[str] = Query(default=None, description="CNPJ do destinatário"),
+    direcao: Optional[str] = Query(default=None, description="entrada | saida"),
     limit: int = 50,
     offset: int = 0,
     db: Session = Depends(get_db),
 ):
     if not db.get(Empresa, empresa_id):
         raise HTTPException(404, "Empresa não encontrada")
-    q = _filtra_documentos(db, empresa_id, modelo, tipo, de, ate, emit_cnpj, dest_cnpj)
+    q = _filtra_documentos(db, empresa_id, modelo, tipo, de, ate, emit_cnpj, dest_cnpj, direcao)
     return q.order_by(Documento.capturado_em.desc()).offset(offset).limit(limit).all()
 
 
@@ -335,24 +339,25 @@ def exportar_documentos_csv(
     ate: Optional[datetime] = Query(default=None),
     emit_cnpj: Optional[str] = Query(default=None),
     dest_cnpj: Optional[str] = Query(default=None),
+    direcao: Optional[str] = Query(default=None),
     db: Session = Depends(get_db),
 ):
     """Exporta os documentos filtrados em CSV (abre no Excel)."""
     if not db.get(Empresa, empresa_id):
         raise HTTPException(404, "Empresa não encontrada")
     docs = (
-        _filtra_documentos(db, empresa_id, modelo, tipo, de, ate, emit_cnpj, dest_cnpj)
+        _filtra_documentos(db, empresa_id, modelo, tipo, de, ate, emit_cnpj, dest_cnpj, direcao)
         .order_by(Documento.dh_emissao.desc())
         .all()
     )
     import csv as _csv
     buf = io.StringIO()
     w = _csv.writer(buf, delimiter=";")
-    w.writerow(["Modelo", "Tipo", "Numero", "Serie", "Situacao", "Rz Emitente",
+    w.writerow(["Modelo", "Tipo", "Direcao", "Numero", "Serie", "Situacao", "Rz Emitente",
                 "CNPJ Emit", "CNPJ Dest", "Data Emissao", "Valor", "Capturado em", "Chave"])
     for d in docs:
         w.writerow([
-            d.modelo, d.tipo, d.numero or "", d.serie or "", d.situacao or "",
+            d.modelo, d.tipo, getattr(d, "direcao", "") or "", d.numero or "", d.serie or "", d.situacao or "",
             d.emit_razao_social or "", d.emit_cnpj or "", d.dest_cnpj or "",
             d.dh_emissao.strftime("%d/%m/%Y") if d.dh_emissao else "",
             (f"{float(d.valor_total):.2f}".replace(".", ",") if d.valor_total is not None else ""),

@@ -1048,6 +1048,9 @@ async function renderDocumentos() {
       <div class="fg"><label>Tipo</label>
         <select id="ft"><option value="">Todos</option><option value="completo">Completo</option><option value="resumo">Resumo</option><option value="evento">Evento</option></select>
       </div>
+      <div class="fg"><label>Direção</label>
+        <select id="fdir"><option value="">Todas</option><option value="entrada">Entrada</option><option value="saida">Saída</option></select>
+      </div>
       <div class="fg"><label>Emissão (inicial)</label><input id="fde" type="date"></div>
       <div class="fg"><label>Emissão (final)</label><input id="fate" type="date"></div>
       <div class="fg"><label>CNPJ Emitente</label><input id="femit" placeholder="só números" maxlength="14"></div>
@@ -1070,15 +1073,17 @@ function _docsQuery(){
   const m=v('fm'),t=v('ft'),de=v('fde'),ate=v('fate'),em=v('femit'),ds=v('fdest');
   if(m)p+=`&modelo=${m}`;
   if(t)p+=`&tipo=${t}`;
+  const dir=v('fdir');
   if(de)p+=`&de=${de}T00:00:00`;
   if(ate)p+=`&ate=${ate}T23:59:59`;
   if(em)p+=`&emit_cnpj=${em}`;
   if(ds)p+=`&dest_cnpj=${ds}`;
+  if(dir)p+=`&direcao=${dir}`;
   return p;
 }
 
 function limpaFiltros(){
-  ['fm','ft','fde','fate','femit','fdest'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['fm','ft','fdir','fde','fate','femit','fdest'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   S.off=0; loadDocs();
 }
 
@@ -1097,9 +1102,10 @@ async function loadDocs() {
     const dt=v=>v?new Date(v).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'—';
     const dd=v=>v?new Date(v).toLocaleDateString('pt-BR'):'—';
     el.innerHTML=`<div class="tbl-wrap"><table>
-      <thead><tr><th>Tipo</th><th>Nº</th><th>Rz. Emit.</th><th>CNPJ Emit.</th><th>Emissão</th><th>CNPJ Dest.</th><th>Situação</th><th style="text-align:right">Valor</th><th>Download</th><th>Chave</th><th></th></tr></thead>
+      <thead><tr><th>Tipo</th><th>Direção</th><th>Nº</th><th>Rz. Emit.</th><th>CNPJ Emit.</th><th>Emissão</th><th>CNPJ Dest.</th><th>Situação</th><th style="text-align:right">Valor</th><th>Capturado</th><th>Chave</th><th></th></tr></thead>
       <tbody>${d.map(x=>`<tr>
         <td><span class="badge b-blue">${x.modelo}</span> <span class="badge b-gray">${x.tipo}</span></td>
+        <td>${x.direcao==='saida'?'<span class="badge b-amber">saída</span>':x.direcao==='entrada'?'<span class="badge b-teal">entrada</span>':'—'}</td>
         <td class="mono">${x.numero||'—'}${x.serie?'<span style="color:var(--text2)">/'+x.serie+'</span>':''}</td>
         <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${x.emit_razao_social||''}">${x.emit_razao_social||'—'}</td>
         <td class="mono">${x.emit_cnpj||'—'}</td>
@@ -1146,7 +1152,8 @@ async function verDetalhes(json){
       </div>
       <div class="mdl-body">
         <div class="mdl-grid">
-          ${F('Situação',x.situacao)}${F('Número/Série',(x.numero||'—')+(x.serie?' / '+x.serie:''))}
+          ${F('Direção',x.direcao==='saida'?'Saída (emitida)':x.direcao==='entrada'?'Entrada (recebida)':'—')}${F('Situação',x.situacao)}
+          ${F('Número/Série',(x.numero||'—')+(x.serie?' / '+x.serie:''))}
           ${F('Emitente',x.emit_razao_social)}${F('CNPJ Emitente',x.emit_cnpj)}
           ${F('CNPJ Destinatário',x.dest_cnpj)}${F('Valor Total',reais(x.valor_total))}
           ${F('Emissão',x.dh_emissao?new Date(x.dh_emissao).toLocaleDateString('pt-BR'):'—')}${F('Capturado em',dt(x.capturado_em))}

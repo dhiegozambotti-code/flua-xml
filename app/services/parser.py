@@ -197,6 +197,8 @@ def _parse_res_nfe(root: Any) -> Dict[str, Any]:
     return {
         "chave": _txt(res, "nfe:chNFe"),
         "emit_cnpj": _txt(res, "nfe:CNPJ"),
+        # resNFe inclui xNome (razão social do emitente); número/série só no completo
+        "emit_razao_social": _txt(res, "nfe:xNome") or None,
         "dest_cnpj": None,
         "valor_total": _txt(res, "nfe:vNF"),
         "dh_emissao": _txt(res, "nfe:dhEmi"),

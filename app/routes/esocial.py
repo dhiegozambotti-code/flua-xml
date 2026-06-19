@@ -167,3 +167,87 @@ def consultar(body: ConsultarInput, authorization: str | None = Header(default=N
         }
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
+
+
+# ── Consulta/Download de eventos por trabalhador (eSocial BX, host de consulta) ──
+# Usado para puxar S-2200/S-2300 já transmitidos e auto-preencher o cadastro.
+# ⚠️ Estrutura best-effort (sped-esocial) — validar action/wrapper ao vivo, como nas tabelas.
+NS_IDENT = "http://www.esocial.gov.br/servicos/empregador/consulta/identificadores-eventos/v1_0_0"
+NS_IDENT_SCHEMA = "http://www.esocial.gov.br/schema/consulta/identificadores-eventos/trabalhador/v1_0_0"
+NS_DOWNLOAD = "http://www.esocial.gov.br/servicos/empregador/download/solicitacao/v1_0_0"
+NS_DOWNLOAD_SCHEMA = "http://www.esocial.gov.br/schema/download/solicitacao/id/v1_0_0"
+
+
+class IdentInput(BaseModel):
+    cnpj: str
+    cpf: str
+    dt_ini: str  # AAAA-MM-DD
+    dt_fim: str
+    cert_pem: str
+    key_pem: str
+    ambiente: Literal[1, 2]
+
+
+class DownloadInput(BaseModel):
+    cnpj: str
+    ids: list[str]
+    cert_pem: str
+    key_pem: str
+    ambiente: Literal[1, 2]
+
+
+@router.post("/consultar-identificadores")
+def consultar_identificadores(body: IdentInput, authorization: str | None = Header(default=None)):
+    _check_auth(authorization)
+    host, ip = _endpoint(body.ambiente, "consultar")
+    path = "/servicos/empregador/dwlcirurgico/WsConsultarIdentificadoresEventos.svc"
+    action = f"{NS_IDENT}/ServicoConsultarIdentificadoresEventos/ConsultarIdentificadoresEventosTrabalhador"
+    to = f"https://{host}{path}"
+    base8 = body.cnpj.replace(" ", "")[:8]
+    cpf = body.cpf.replace(".", "").replace("-", "")
+    inner = (
+        f'<eSocial xmlns="{NS_IDENT_SCHEMA}">'
+        f"<consultaIdentificadoresEvts><ideEmpregador><tpInsc>1</tpInsc><nrInsc>{base8}</nrInsc></ideEmpregador>"
+        f"<consultaEvtsTrabalhador><cpfTrab>{cpf}</cpfTrab><dtIni>{body.dt_ini}</dtIni><dtFim>{body.dt_fim}</dtFim></consultaEvtsTrabalhador>"
+        f"</consultaIdentificadoresEvts></eSocial>"
+    )
+    soap_body = (
+        f"<v1:ConsultarIdentificadoresEventosTrabalhador>"
+        f"<v1:consultaEventosTrabalhador>{inner}</v1:consultaEventosTrabalhador>"
+        f"</v1:ConsultarIdentificadoresEventosTrabalhador>"
+    )
+    envelope = _soap_envelope(NS_IDENT, action, to, soap_body)
+    try:
+        bruto = _soap_post(host, ip, path, action, envelope, body.cert_pem, body.key_pem)
+        ids = re.findall(r"<(?:\w+:)?id>([^<]+)</(?:\w+:)?id>", bruto)
+        recibos = re.findall(r"<(?:\w+:)?nrRec[^>]*>([^<]+)</", bruto)
+        return {"bruto": bruto, "ids": ids, "recibos": recibos, "descricao": _pick(bruto, "cdResposta")}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@router.post("/download-eventos")
+def download_eventos(body: DownloadInput, authorization: str | None = Header(default=None)):
+    _check_auth(authorization)
+    host, ip = _endpoint(body.ambiente, "consultar")
+    path = "/servicos/empregador/dwlcirurgico/WsSolicitarDownloadEventos.svc"
+    action = f"{NS_DOWNLOAD}/ServicoSolicitarDownloadEventos/SolicitarDownloadEventosPorId"
+    to = f"https://{host}{path}"
+    base8 = body.cnpj.replace(" ", "")[:8]
+    ids_xml = "".join(f"<id>{i}</id>" for i in body.ids)
+    inner = (
+        f'<eSocial xmlns="{NS_DOWNLOAD_SCHEMA}">'
+        f"<download><ideEmpregador><tpInsc>1</tpInsc><nrInsc>{base8}</nrInsc></ideEmpregador>"
+        f"<solicDownloadEvtsPorId>{ids_xml}</solicDownloadEvtsPorId></download></eSocial>"
+    )
+    soap_body = (
+        f"<v1:SolicitarDownloadEventosPorId>"
+        f"<v1:solicitacao>{inner}</v1:solicitacao>"
+        f"</v1:SolicitarDownloadEventosPorId>"
+    )
+    envelope = _soap_envelope(NS_DOWNLOAD, action, to, soap_body)
+    try:
+        bruto = _soap_post(host, ip, path, action, envelope, body.cert_pem, body.key_pem)
+        return {"bruto": bruto}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))

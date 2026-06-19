@@ -490,3 +490,27 @@ def run_sweep(db: Session) -> None:
         sweep_certificados_expirando(db)
     except Exception:
         logger.exception("Erro no sweep de certificados")
+
+    # Relógio do outbox eSocial: pinga o cron do Flua (Vercel Hobby só tem cron diário,
+    # então usamos este worker de 30s como batida para transmitir/consultar com rapidez).
+    _ping_esocial_outbox()
+
+
+def _ping_esocial_outbox() -> None:
+    """POST no cron de transmissão eSocial do app Next.js (best-effort)."""
+    import os
+    import urllib.request
+
+    url = os.getenv("ESOCIAL_OUTBOX_CRON_URL")
+    secret = os.getenv("ESOCIAL_OUTBOX_CRON_SECRET") or os.getenv("CRON_SECRET")
+    if not url:
+        return
+    try:
+        req = urllib.request.Request(
+            url, method="GET",
+            headers={"Authorization": f"Bearer {secret}"} if secret else {},
+        )
+        with urllib.request.urlopen(req, timeout=55):
+            pass
+    except Exception:
+        logger.exception("Falha ao pingar o outbox eSocial")

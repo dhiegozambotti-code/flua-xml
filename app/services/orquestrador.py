@@ -502,7 +502,11 @@ def _ping_esocial_outbox() -> None:
     import urllib.request
 
     url = os.getenv("ESOCIAL_OUTBOX_CRON_URL")
-    secret = os.getenv("ESOCIAL_OUTBOX_CRON_SECRET") or os.getenv("CRON_SECRET")
+    secret = (
+        os.getenv("ESOCIAL_OUTBOX_CRON_SECRET")
+        or os.getenv("CRON_SECRET")
+        or os.getenv("ESOCIAL_PROXY_SECRET")  # já existe no Railway
+    )
     if not url:
         return
     try:

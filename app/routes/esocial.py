@@ -89,7 +89,7 @@ def _soap_post(host: str, ip: str, path: str, action: str, envelope: str, cert_p
             },
         )
         try:
-            with urllib.request.urlopen(req, context=ctx, timeout=60) as resp:
+            with urllib.request.urlopen(req, context=ctx, timeout=45) as resp:
                 return resp.read().decode("utf-8")
         except urllib.error.HTTPError as e:
             # SOAP Fault do eSocial vem como HTTP 500 — lemos o body para extrair o erro.

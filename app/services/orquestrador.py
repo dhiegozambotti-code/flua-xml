@@ -393,6 +393,70 @@ def _poll_estado(db: Session, estado: DistribuicaoEstado, empresa: Empresa,
             break
 
 
+def capturar_por_chave(db: Session, empresa_id: str, chave: str) -> dict:
+    """Captura uma NF-e específica por chave (consChNFe).
+
+    Funciona para notas de qualquer direção desde que a empresa seja parte
+    de interesse (emitente, destinatário ou autXML) — inclusive as próprias
+    saídas, que a distribuição por NSU não devolve.
+    """
+    empresa = db.get(Empresa, empresa_id)
+    if not empresa:
+        return {"ok": False, "erro": "Empresa não encontrada"}
+    if not chave or len(chave) != 44 or not chave.isdigit():
+        return {"ok": False, "erro": "Chave inválida (esperado 44 dígitos)"}
+
+    cert = (
+        db.query(Certificado)
+        .filter_by(empresa_id=empresa_id, status="ativo")
+        .order_by(Certificado.valido_ate.desc())
+        .first()
+    )
+    if not cert:
+        return {"ok": False, "erro": "Empresa sem certificado ativo"}
+
+    try:
+        pfx = decrypt_bytes(cert.pfx_cifrado, settings.vault_master_key_bytes)
+        senha = decrypt_bytes(cert.senha_cifrada, settings.vault_master_key_bytes).decode()
+    except Exception as exc:
+        return {"ok": False, "erro": f"Falha ao descriptografar cert: {exc}"}
+
+    client = NFeSoapClient(
+        pfx_bytes=pfx, senha=senha,
+        endpoint=settings.nfe_endpoint, tp_amb=settings.tp_amb, modelo="nfe",
+    )
+    try:
+        resp = client.cons_ch_nfe(uf=empresa.uf or "SP", cnpj=empresa.cnpj, chave=chave)
+    except Exception as exc:
+        return {"ok": False, "erro": f"Erro SEFAZ: {exc}"}
+
+    cstat = resp.get("cstat")
+    _log_captura(db, empresa_id, "nfe", "consChNFe", cstat or 0, resp.get("xmotivo", ""),
+                 len(resp.get("docs", [])), 0)
+
+    if cstat != 138 or not resp.get("docs"):
+        return {"ok": False, "cstat": cstat, "xmotivo": resp.get("xmotivo"),
+                "docs": 0, "msg": "Nenhum documento retornado para a chave"}
+
+    capturados = []
+    for doc_item in resp["docs"]:
+        nsu = doc_item.get("nsu", 0)
+        if _doc_exists(db, empresa_id, "nfe", nsu, chave):
+            capturados.append({"nsu": nsu, "status": "já existia"})
+            continue
+        try:
+            parsed = parse_doczip(doc_item["schema"], doc_item["b64"])
+            doc = _store_doc(db, empresa_id, "nfe", nsu, parsed, empresa_cnpj=empresa.cnpj)
+            _fire_webhook_captura(db, empresa, doc)
+            capturados.append({"nsu": nsu, "chave": doc.chave, "direcao": doc.direcao,
+                               "tipo": doc.tipo, "status": "capturado"})
+        except Exception as exc:
+            logger.error("Falha ao processar docZip por chave %s: %s", chave, exc)
+            capturados.append({"nsu": nsu, "status": f"erro: {exc}"})
+
+    return {"ok": True, "cstat": cstat, "xmotivo": resp.get("xmotivo"), "docs": capturados}
+
+
 def poll_empresa_modelo(db: Session, empresa_id: str, modelo: str,
                         tipo_fluxo: str = "entrada") -> None:
     """Executa um ciclo de polling para uma empresa×modelo×fluxo."""

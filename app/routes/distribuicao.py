@@ -330,6 +330,13 @@ def listar_documentos(
     return q.order_by(Documento.capturado_em.desc()).offset(offset).limit(limit).all()
 
 
+@router.post("/empresas/{empresa_id}/documentos/consultar-chave")
+def consultar_por_chave(empresa_id: str, chave: str, db: Session = Depends(get_db)):
+    """Captura uma NF-e por chave (consChNFe) — funciona inclusive para saídas próprias."""
+    from app.services.orquestrador import capturar_por_chave
+    return capturar_por_chave(db, empresa_id, chave.strip())
+
+
 @router.get("/empresas/{empresa_id}/documentos/exportar-csv")
 def exportar_documentos_csv(
     empresa_id: str,

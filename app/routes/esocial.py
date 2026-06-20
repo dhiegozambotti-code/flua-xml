@@ -227,9 +227,15 @@ def consultar_identificadores(body: IdentInput, authorization: str | None = Head
     envelope = _soap_envelope(NS_IDENT, action, to, soap_body)
     try:
         bruto = _soap_post(host, ip, path, action, envelope, body.cert_pem, body.key_pem)
-        ids = re.findall(r"<(?:\w+:)?id>([^<]+)</(?:\w+:)?id>", bruto)
-        recibos = re.findall(r"<(?:\w+:)?nrRec[^>]*>([^<]+)</", bruto)
-        return {"bruto": bruto, "ids": ids, "recibos": recibos, "descricao": _pick(bruto, "cdResposta")}
+        # IDs vêm em atributos Id="..." de <evento>/<ideEvento>; recibos em <nrRec>/<nrRecibo>.
+        ids = re.findall(r'<(?:\w+:)?(?:evento|ideEvento)\b[^>]*\bId="([^"]+)"', bruto)
+        if not ids:
+            ids = re.findall(r"<(?:\w+:)?id>([^<]+)</(?:\w+:)?id>", bruto)
+        recibos = re.findall(r"<(?:\w+:)?nrRec(?:ibo)?[^>]*>([^<]+)</", bruto)
+        return {
+            "bruto": bruto, "ids": ids, "recibos": recibos,
+            "codigo": _pick(bruto, "cdResposta"), "descricao": _pick(bruto, "descResposta"),
+        }
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 

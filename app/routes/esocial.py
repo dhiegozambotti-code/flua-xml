@@ -187,18 +187,14 @@ NS_DOWNLOAD_SCHEMA = "http://www.esocial.gov.br/schema/download/solicitacao/id/v
 
 
 class IdentInput(BaseModel):
-    cnpj: str
-    cpf: str
-    dt_ini: str  # AAAA-MM-DD
-    dt_fim: str
+    consulta_xml: str  # <eSocial> da consulta JÁ ASSINADO (assinatura é montada no nexus)
     cert_pem: str
     key_pem: str
     ambiente: Literal[1, 2]
 
 
 class DownloadInput(BaseModel):
-    cnpj: str
-    ids: list[str]
+    download_xml: str  # <eSocial> do download JÁ ASSINADO
     cert_pem: str
     key_pem: str
     ambiente: Literal[1, 2]
@@ -211,17 +207,9 @@ def consultar_identificadores(body: IdentInput, authorization: str | None = Head
     path = "/servicos/empregador/dwlcirurgico/WsConsultarIdentificadoresEventos.svc"
     action = f"{NS_IDENT}/ServicoConsultarIdentificadoresEventos/ConsultarIdentificadoresEventosTrabalhador"
     to = f"https://{host}{path}"
-    base8 = body.cnpj.replace(" ", "")[:8]
-    cpf = body.cpf.replace(".", "").replace("-", "")
-    inner = (
-        f'<eSocial xmlns="{NS_IDENT_SCHEMA}">'
-        f"<consultaIdentificadoresEvts><ideEmpregador><tpInsc>1</tpInsc><nrInsc>{base8}</nrInsc></ideEmpregador>"
-        f"<consultaEvtsTrabalhador><cpfTrab>{cpf}</cpfTrab><dtIni>{body.dt_ini}</dtIni><dtFim>{body.dt_fim}</dtFim></consultaEvtsTrabalhador>"
-        f"</consultaIdentificadoresEvts></eSocial>"
-    )
     soap_body = (
         f"<v1:ConsultarIdentificadoresEventosTrabalhador>"
-        f"<v1:consultaEventosTrabalhador>{inner}</v1:consultaEventosTrabalhador>"
+        f"<v1:consultaEventosTrabalhador>{body.consulta_xml}</v1:consultaEventosTrabalhador>"
         f"</v1:ConsultarIdentificadoresEventosTrabalhador>"
     )
     envelope = _soap_envelope(NS_IDENT, action, to, soap_body)
@@ -247,16 +235,9 @@ def download_eventos(body: DownloadInput, authorization: str | None = Header(def
     path = "/servicos/empregador/dwlcirurgico/WsSolicitarDownloadEventos.svc"
     action = f"{NS_DOWNLOAD}/ServicoSolicitarDownloadEventos/SolicitarDownloadEventosPorId"
     to = f"https://{host}{path}"
-    base8 = body.cnpj.replace(" ", "")[:8]
-    ids_xml = "".join(f"<id>{i}</id>" for i in body.ids)
-    inner = (
-        f'<eSocial xmlns="{NS_DOWNLOAD_SCHEMA}">'
-        f"<download><ideEmpregador><tpInsc>1</tpInsc><nrInsc>{base8}</nrInsc></ideEmpregador>"
-        f"<solicDownloadEvtsPorId>{ids_xml}</solicDownloadEvtsPorId></download></eSocial>"
-    )
     soap_body = (
         f"<v1:SolicitarDownloadEventosPorId>"
-        f"<v1:solicitacao>{inner}</v1:solicitacao>"
+        f"<v1:solicitacao>{body.download_xml}</v1:solicitacao>"
         f"</v1:SolicitarDownloadEventosPorId>"
     )
     envelope = _soap_envelope(NS_DOWNLOAD, action, to, soap_body)

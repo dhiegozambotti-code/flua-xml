@@ -36,6 +36,14 @@ class Settings(BaseSettings):
     nfe_evento_endpoint_prod: str = "https://www.nfe.fazenda.gov.br/NFeRecepcaoEvento4/NFeRecepcaoEvento4.asmx"
     nfe_evento_endpoint_homolog: str = "https://homologacao.nfe.fazenda.gov.br/NFeRecepcaoEvento4/NFeRecepcaoEvento4.asmx"
 
+    # NFS-e — ADN Nacional (REST/mTLS, Padrão Nacional NFS-e — gov.br/nfse)
+    nfse_adn_endpoint_prod: str = "https://adn.nfse.gov.br/contribuintes"
+    nfse_adn_endpoint_restrita: str = "https://adn.producaorestrita.nfse.gov.br/contribuintes"
+    # Ambiente da NFS-e independente do tp_amb global (que vale p/ NF-e/CT-e/MDF-e).
+    # Vazio = segue tp_amb; "1"=produção, "2"=produção restrita. Permite testar
+    # NFS-e em restrita sem flipar a NF-e (que pode estar em produção).
+    nfse_amb: str = ""
+
     # Manifestação automática
     auto_manifestacao_habilitado: bool = True
     auto_manifestacao_tipo: str = "210210"  # Ciência da Operação (padrão)
@@ -65,6 +73,14 @@ class Settings(BaseSettings):
     @property
     def mdfe_endpoint(self) -> str:
         return self.mdfe_endpoint_prod if self.tp_amb == "1" else self.mdfe_endpoint_homolog
+
+    @property
+    def nfse_amb_efetivo(self) -> str:
+        return self.nfse_amb or self.tp_amb
+
+    @property
+    def nfse_endpoint(self) -> str:
+        return self.nfse_adn_endpoint_prod if self.nfse_amb_efetivo == "1" else self.nfse_adn_endpoint_restrita
 
 
 @lru_cache

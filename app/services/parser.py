@@ -34,6 +34,26 @@ def _txt(el: Any, xpath: str, ns: dict = _NS) -> Optional[str]:
     return found.text.strip() if found is not None and found.text else None
 
 
+def _find_local(el: Any, *tags: str):
+    """Busca o primeiro descendente por local-name (ignora namespace).
+
+    Usado no parser de NFS-e Nacional, cujo XSD/namespace pode variar entre
+    municípios e versões; mais robusto que xpath com namespace fixo.
+    """
+    if el is None:
+        return None
+    for tag in tags:
+        found = el.find(f".//{{*}}{tag}")
+        if found is not None:
+            return found
+    return None
+
+
+def _txt_local(el: Any, *tags: str) -> Optional[str]:
+    found = _find_local(el, *tags)
+    return found.text.strip() if found is not None and found.text else None
+
+
 def _parse_itens_nfe(inf: Any) -> list:
     """Extrai lista de itens da NF-e com campos fiscais por item."""
     itens = []
@@ -367,12 +387,95 @@ def _parse_evento_mdfe(root: Any) -> Dict[str, Any]:
     }
 
 
+_NS_NFSE = {"nfse": "http://www.sped.fazenda.gov.br/nfse"}
+
+
+def _parse_nfse(root: Any) -> Dict[str, Any]:
+    """Parser da NFS-e do Padrão Nacional (ADN/gov.br).
+
+    Tolerante a variações de namespace/estrutura (busca por local-name).
+    Direção: prestador → emit_cnpj (saída); tomador → dest_cnpj (entrada).
+    Campos específicos de serviço (ISS, código, competência) vão em `itens`.
+    """
+    inf = _find_local(root, "infNFSe")
+    if inf is None:
+        inf = root
+
+    # Chave de acesso: atributo Id do infNFSe (NFS + 50 dígitos)
+    chave = None
+    id_attr = inf.get("Id") if inf is not None else None
+    if id_attr:
+        digits = "".join(c for c in id_attr if c.isdigit())
+        chave = digits or None
+
+    prest = _find_local(root, "prest", "emit")
+    toma = _find_local(root, "toma", "tomador", "TomadorServico")
+
+    def _doc(el):
+        return _txt_local(el, "CNPJ", "CPF", "nifNum") if el is not None else None
+
+    valor = (_txt_local(root, "vLiq") or _txt_local(root, "vServ")
+             or _txt_local(root, "vServPrest") or _txt_local(root, "ValorServicos"))
+    dh = (_txt_local(root, "dhProc") or _txt_local(root, "dhEmi")
+          or _txt_local(root, "dCompet"))
+    cstat = _txt_local(root, "cStat")
+    situacao = "autorizada" if (chave or cstat in (None, "100")) else "desconhecida"
+
+    item = {
+        "descricao": _txt_local(root, "xDescServ", "discriminacao", "Discriminacao"),
+        "cod_trib_nac": _txt_local(root, "cTribNac"),
+        "cod_trib_mun": _txt_local(root, "cTribMun"),
+        "competencia": _txt_local(root, "dCompet", "Competencia"),
+        "aliquota": _txt_local(root, "pAliq", "Aliquota"),
+        "v_iss": _txt_local(root, "vISSQN", "vISS", "ValorIss"),
+        "v_serv": _txt_local(root, "vServ", "ValorServicos"),
+    }
+    itens = [item] if any(item.values()) else None
+
+    return {
+        "chave": chave,
+        "emit_cnpj": _doc(prest),
+        "emit_razao_social": _txt_local(prest, "xNome", "RazaoSocial") if prest is not None else None,
+        "dest_cnpj": _doc(toma),
+        "valor_total": valor,
+        "dh_emissao": dh,
+        "situacao": situacao,
+        "numero": _txt_local(root, "nNFSe", "nDFSe", "nDPS", "Numero"),
+        "serie": _txt_local(root, "serie"),
+        "modelo_doc": "nfse",
+        "itens": itens,
+    }
+
+
+def _parse_evento_nfse(root: Any) -> Dict[str, Any]:
+    """Evento de NFS-e (cancelamento/substituição) — Padrão Nacional."""
+    inf = _find_local(root, "infPedReg", "infEvento")
+    if inf is None:
+        inf = root
+    ch = _txt_local(root, "chNFSe") or (inf.get("Id") if inf is not None else None)
+    chave = "".join(c for c in ch if c.isdigit()) or None if ch else None
+    return {
+        "chave": chave,
+        "emit_cnpj": _txt_local(root, "CNPJ", "CPF"),
+        "dest_cnpj": None,
+        "valor_total": None,
+        "dh_emissao": _txt_local(root, "dhEvento", "dhProc"),
+        "situacao": "evento",
+        "tipo_evento": _txt_local(root, "tpEvento", "cEvento"),
+        "modelo_doc": "nfse",
+    }
+
+
 def _classify_schema(schema: str) -> str:
     s = schema.lower()
     if "procnfe" in s or "proccte" in s or "procmdfe" in s:
         return "completo"
     if "resnfe" in s or "rescte" in s or "resmdfe" in s:
         return "resumo"
+    if "eventonfse" in s or ("nfse" in s and "evento" in s):
+        return "evento"
+    if "nfse" in s:
+        return "completo"
     if "evento" in s or "procevento" in s:
         return "evento"
     return "desconhecido"
@@ -414,6 +517,10 @@ def parse_doczip(schema: str, b64_content: str) -> Dict[str, Any]:
         meta = _parse_res_mdfe(root)
     elif "eventomdfe" in s or "procevento" in s and "mdfe" in s:
         meta = _parse_evento_mdfe(root)
+    elif "eventonfse" in s or ("nfse" in s and "evento" in s):
+        meta = _parse_evento_nfse(root)
+    elif "nfse" in s:
+        meta = _parse_nfse(root)
     elif "evento" in s:
         meta = _parse_evento(root)
     else:

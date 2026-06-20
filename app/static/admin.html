@@ -894,13 +894,14 @@ async function renderDistribuicao() {
           <button class="btn btn-ghost" onclick="ativaDist('cte','entrada')">🚛 CT-e</button>
           <button class="btn btn-ghost" onclick="ativaDist('mdfe','entrada')">📋 MDF-e</button>
           <button class="btn btn-ghost" onclick="ativaDist('nfce','saida')">🛒 NFC-e</button>
+          <button class="btn btn-ghost" onclick="ativaDist('nfse','entrada')">🧾 NFS-e</button>
         </div>
       </div>
       <div class="card">
         <div class="card-top"><div class="card-label">Poll Manual</div></div>
         <div class="row2" style="margin-bottom:14px">
           <div class="fg"><label>Modelo</label>
-            <select id="pm"><option value="nfe">NF-e</option><option value="cte">CT-e</option><option value="mdfe">MDF-e</option><option value="nfce">NFC-e</option></select>
+            <select id="pm"><option value="nfe">NF-e</option><option value="cte">CT-e</option><option value="mdfe">MDF-e</option><option value="nfce">NFC-e</option><option value="nfse">NFS-e</option></select>
           </div>
           <div class="fg"><label>Fluxo</label>
             <select id="pf"><option value="entrada">Entrada</option><option value="saida">Saída</option></select>
@@ -1043,7 +1044,7 @@ async function renderDocumentos() {
     </div>
     <div class="docs-filtros">
       <div class="fg"><label>Modelo</label>
-        <select id="fm"><option value="">Todos</option><option value="nfe">NF-e</option><option value="nfce">NFC-e</option><option value="cte">CT-e</option><option value="mdfe">MDF-e</option></select>
+        <select id="fm"><option value="">Todos</option><option value="nfe">NF-e</option><option value="nfce">NFC-e</option><option value="cte">CT-e</option><option value="mdfe">MDF-e</option><option value="nfse">NFS-e</option></select>
       </div>
       <div class="fg"><label>Tipo</label>
         <select id="ft"><option value="">Todos</option><option value="completo">Completo</option><option value="resumo">Resumo</option><option value="evento">Evento</option></select>

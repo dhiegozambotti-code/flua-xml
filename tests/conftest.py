@@ -39,6 +39,25 @@ def build_doczip(xml_str: str) -> str:
 
 # ---- XMLs sintéticos --------------------------------------------------------
 
+NFSE_NACIONAL_XML = """<?xml version="1.0" encoding="UTF-8"?>
+<NFSe xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.00">
+ <infNFSe Id="NFS35260612345678000199000000000000123456789012345678">
+  <nNFSe>515</nNFSe>
+  <cStat>100</cStat>
+  <dhProc>2026-06-16T17:33:39-03:00</dhProc>
+  <emit><CNPJ>12345678000199</CNPJ><xNome>PRESTADOR SERVICOS LTDA</xNome></emit>
+  <valores><vLiq>1500.00</vLiq></valores>
+  <DPS><infDPS>
+    <dCompet>2026-06-01</dCompet>
+    <prest><CNPJ>12345678000199</CNPJ><xNome>PRESTADOR SERVICOS LTDA</xNome></prest>
+    <toma><CNPJ>98765432000188</CNPJ><xNome>TOMADOR LTDA</xNome></toma>
+    <serv><cServ><cTribNac>010701</cTribNac><xDescServ>Consultoria em TI</xDescServ></cServ></serv>
+    <valores><vServPrest><vServ>1500.00</vServ></vServPrest>
+      <trib><tribMun><pAliq>5.00</pAliq><vISSQN>75.00</vISSQN></tribMun></trib></valores>
+  </infDPS></DPS>
+ </infNFSe>
+</NFSe>"""
+
 PROC_NFE_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <nfeProc xmlns="http://www.portalfiscal.inf.br/nfe">
   <NFe>

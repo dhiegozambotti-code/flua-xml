@@ -10,6 +10,7 @@ from tests.conftest import (
     PROC_NFE_NFC_XML,
     PROC_CTE_XML,
     PROC_MDFE_XML,
+    NFSE_NACIONAL_XML,
 )
 
 
@@ -17,6 +18,42 @@ from tests.conftest import (
 
 def doczip(xml_str, schema):
     return parse_doczip(schema, build_doczip(xml_str))
+
+
+# ---- NFS-e Nacional (ADN) ---------------------------------------------------
+
+class TestNfseNacional:
+    def test_modelo_doc(self):
+        r = doczip(NFSE_NACIONAL_XML, "nfse")
+        assert r["modelo_doc"] == "nfse"
+        assert r["tipo"] == "completo"
+
+    def test_chave_50_digitos(self):
+        r = doczip(NFSE_NACIONAL_XML, "nfse")
+        assert r["chave"] == "35260612345678000199000000000000123456789012345678"
+        assert len(r["chave"]) == 50
+
+    def test_prestador_vira_emit(self):
+        r = doczip(NFSE_NACIONAL_XML, "nfse")
+        assert r["emit_cnpj"] == "12345678000199"
+        assert r["emit_razao_social"] == "PRESTADOR SERVICOS LTDA"
+
+    def test_tomador_vira_dest(self):
+        r = doczip(NFSE_NACIONAL_XML, "nfse")
+        assert r["dest_cnpj"] == "98765432000188"
+
+    def test_valor_e_situacao(self):
+        r = doczip(NFSE_NACIONAL_XML, "nfse")
+        assert r["valor_total"] == "1500.00"
+        assert r["situacao"] == "autorizada"
+
+    def test_itens_servico_iss(self):
+        import json
+        r = doczip(NFSE_NACIONAL_XML, "nfse")
+        itens = json.loads(r["itens_json"])
+        assert itens[0]["cod_trib_nac"] == "010701"
+        assert itens[0]["v_iss"] == "75.00"
+        assert itens[0]["competencia"] == "2026-06-01"
 
 
 # ---- NF-e completo ----------------------------------------------------------

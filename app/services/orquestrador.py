@@ -265,14 +265,27 @@ def _poll_estado(db: Session, estado: DistribuicaoEstado, empresa: Empresa,
     if estado.status == "cert_invalido":
         return
 
-    endpoint = settings.cte_endpoint if estado.modelo == "cte" else settings.nfe_endpoint
-    client = NFeSoapClient(
-        pfx_bytes=pfx_bytes,
-        senha=senha,
-        endpoint=endpoint,
-        tp_amb=settings.tp_amb,
-        modelo=estado.modelo,
-    )
+    # NFS-e Nacional usa API REST (ADN); demais modelos usam SOAP (SEFAZ).
+    # O NfseRestClient imita a interface do NFeSoapClient (dist_nsu/contrato),
+    # então o loop de drenagem abaixo é idêntico para ambos.
+    if estado.modelo == "nfse":
+        from app.services.nfse_client import NfseRestClient
+        endpoint = settings.nfse_endpoint
+        client = NfseRestClient(
+            pfx_bytes=pfx_bytes,
+            senha=senha,
+            endpoint=endpoint,
+            tp_amb=settings.nfse_amb_efetivo,
+        )
+    else:
+        endpoint = settings.cte_endpoint if estado.modelo == "cte" else settings.nfe_endpoint
+        client = NFeSoapClient(
+            pfx_bytes=pfx_bytes,
+            senha=senha,
+            endpoint=endpoint,
+            tp_amb=settings.tp_amb,
+            modelo=estado.modelo,
+        )
     estado.endpoint_usado = endpoint
     db.commit()
 

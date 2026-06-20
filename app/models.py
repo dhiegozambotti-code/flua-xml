@@ -90,7 +90,8 @@ class Documento(Base):
     tipo: Mapped[str] = mapped_column(String(20), nullable=False)    # resumo | completo | evento
     nsu: Mapped[int] = mapped_column(BigInteger, nullable=False)
     schema_xsd: Mapped[Optional[str]] = mapped_column(String(50))
-    chave: Mapped[Optional[str]] = mapped_column(String(44), index=True)
+    # 44 dígitos (NF-e/CT-e/MDF-e) ou 50 (chave de acesso da NFS-e Nacional)
+    chave: Mapped[Optional[str]] = mapped_column(String(50), index=True)
     emit_cnpj: Mapped[Optional[str]] = mapped_column(String(14))
     dest_cnpj: Mapped[Optional[str]] = mapped_column(String(14))
     # Direção do documento em relação à empresa (CNPJ): entrada (recebida) |

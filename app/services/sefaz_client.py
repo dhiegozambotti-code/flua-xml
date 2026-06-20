@@ -28,6 +28,9 @@ _HOSTS_OVERRIDE: Dict[str, str] = {
     "nfe.svrs.rs.gov.br": "4.201.99.36",
     "homologacao.nfe.fazenda.gov.br": "200.198.239.133",
     "hom1.nfe.fazenda.gov.br": "200.198.239.133",
+    # NFS-e Nacional (ADN) — produção e produção restrita resolvem para o mesmo IP
+    "adn.nfse.gov.br": "189.9.113.51",
+    "adn.producaorestrita.nfse.gov.br": "189.9.113.51",
 }
 
 # Injetar overrides extras via env var

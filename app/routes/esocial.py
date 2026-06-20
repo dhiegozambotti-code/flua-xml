@@ -27,11 +27,19 @@ ENDPOINTS = {
         "webservices.consulta.esocial.gov.br",
         os.getenv("ESOCIAL_CONSULTA_PROD_IP", "189.9.104.163"),
     ),
+    (1, "download"): (
+        "webservices.download.esocial.gov.br",
+        os.getenv("ESOCIAL_DOWNLOAD_PROD_IP", "189.9.104.199"),
+    ),
     (2, "enviar"): (
         "webservices.producaorestrita.esocial.gov.br",
         os.getenv("ESOCIAL_RESTRITA_IP", "200.198.235.238"),
     ),
     (2, "consultar"): (
+        "webservices.producaorestrita.esocial.gov.br",
+        os.getenv("ESOCIAL_RESTRITA_IP", "200.198.235.238"),
+    ),
+    (2, "download"): (
         "webservices.producaorestrita.esocial.gov.br",
         os.getenv("ESOCIAL_RESTRITA_IP", "200.198.235.238"),
     ),
@@ -199,7 +207,7 @@ class DownloadInput(BaseModel):
 @router.post("/consultar-identificadores")
 def consultar_identificadores(body: IdentInput, authorization: str | None = Header(default=None)):
     _check_auth(authorization)
-    host, ip = _endpoint(body.ambiente, "consultar")
+    host, ip = _endpoint(body.ambiente, "download")
     path = "/servicos/empregador/dwlcirurgico/WsConsultarIdentificadoresEventos.svc"
     action = f"{NS_IDENT}/ServicoConsultarIdentificadoresEventos/ConsultarIdentificadoresEventosTrabalhador"
     to = f"https://{host}{path}"
@@ -229,7 +237,7 @@ def consultar_identificadores(body: IdentInput, authorization: str | None = Head
 @router.post("/download-eventos")
 def download_eventos(body: DownloadInput, authorization: str | None = Header(default=None)):
     _check_auth(authorization)
-    host, ip = _endpoint(body.ambiente, "consultar")
+    host, ip = _endpoint(body.ambiente, "download")
     path = "/servicos/empregador/dwlcirurgico/WsSolicitarDownloadEventos.svc"
     action = f"{NS_DOWNLOAD}/ServicoSolicitarDownloadEventos/SolicitarDownloadEventosPorId"
     to = f"https://{host}{path}"

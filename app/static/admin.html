@@ -666,6 +666,9 @@ html[data-theme="light"] .theme-btn::after {
     <div class="nav-item" onclick="nav('documentos')" data-page="documentos">
       <div class="nav-dot"></div>Documentos
     </div>
+    <div class="nav-item" onclick="nav('integracao')" data-page="integracao">
+      <div class="nav-dot"></div>Integração ERP
+    </div>
     <div class="nav-group">Monitor</div>
     <div class="nav-item" onclick="nav('saude')" data-page="saude">
       <div class="nav-dot"></div>Saúde & Alertas
@@ -758,7 +761,7 @@ function updEmpresa() {
 function nav(p) {
   S.page=p;
   document.querySelectorAll('.nav-item').forEach(el=>el.classList.toggle('active',el.dataset.page===p));
-  const t={empresas:'EMPRESAS',certificado:'CERTIFICADO DIGITAL',distribuicao:'DISTRIBUIÇÃO NSU',documentos:'DOCUMENTOS CAPTURADOS',saude:'SAÚDE & ALERTAS'};
+  const t={empresas:'EMPRESAS',certificado:'CERTIFICADO DIGITAL',distribuicao:'DISTRIBUIÇÃO NSU',documentos:'DOCUMENTOS CAPTURADOS',integracao:'INTEGRAÇÃO ERP',saude:'SAÚDE & ALERTAS'};
   document.getElementById('page-title').textContent=t[p];
   R[p]();
 }
@@ -1235,7 +1238,51 @@ async function loadSaude() {
   } catch(e){toast('Erro: '+e.message,'err');}
 }
 
-const R={empresas:renderEmpresas,certificado:renderCertificado,distribuicao:renderDistribuicao,documentos:renderDocumentos,saude:renderSaude};
+const MODELOS_INT=[['nfe','NF-e'],['nfce','NFC-e'],['cte','CT-e'],['mdfe','MDF-e'],['nfse','NFS-e']];
+
+async function renderIntegracao() {
+  if(!S.id){document.getElementById('content').innerHTML='<div class="empty" style="height:60vh"><div class="empty-ico">🏢</div><div class="empty-txt">Selecione uma empresa primeiro</div></div>';return;}
+  document.getElementById('content').innerHTML='<div id="int-cnt"><div class="empty"><div class="empty-ico">⏳</div><div class="empty-txt">Carregando…</div></div></div>';
+  try{
+    const emp=await api('GET',`/empresas/${S.id}`);
+    const org=emp.organizacao_id;
+    const whs=await api('GET',`/organizacoes/${org}/webhooks`);
+    const cnt=document.getElementById('int-cnt');
+    if(!whs.length){cnt.innerHTML=`<div class="card"><div class="empty"><div class="empty-ico">🔌</div><div class="empty-txt">Nenhum webhook configurado para esta organização</div><div style="font-size:12px;color:var(--text3);margin-top:8px">Org: ${org}</div></div></div>`;return;}
+    cnt.innerHTML=whs.map(wh=>{
+      let filtro={}; try{filtro=JSON.parse(wh.filtro_envio||'{}')}catch(e){}
+      const cell=(m,d)=>{
+        const on=!!(filtro[m]&&filtro[m][d]);
+        return `<td style="text-align:center;padding:8px"><input type="checkbox" data-wh="${wh.id}" data-m="${m}" data-d="${d}" ${on?'checked':''} style="width:18px;height:18px;cursor:pointer"></td>`;
+      };
+      return `<div class="card" style="margin-bottom:16px">
+        <div class="card-top"><div class="card-label">Envio ao ERP</div><span style="font-family:var(--mono);font-size:11px;color:var(--text2)">${wh.url}</span></div>
+        <p style="font-size:12px;color:var(--text2);margin:0 0 14px">Marque os tipos que devem ser <b>enviados</b> ao ERP. Desmarcado = capturado no Flua mas <b>não</b> enviado (padrão seguro).</p>
+        <div class="tbl-wrap"><table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead><tr style="color:var(--text2)"><th style="text-align:left;padding:8px">Modelo</th><th style="padding:8px">Entrada</th><th style="padding:8px">Saída</th></tr></thead>
+          <tbody>${MODELOS_INT.map(([m,lb])=>`<tr style="border-top:1px solid var(--line)"><td style="padding:8px;font-weight:500">${lb}</td>${cell(m,'entrada')}${cell(m,'saida')}</tr>`).join('')}</tbody>
+        </table></div>
+        <div class="actions" style="margin-top:14px">
+          <button class="btn btn-teal btn-sm" onclick="salvaFiltro('${org}','${wh.id}')">💾 Salvar travas</button>
+        </div>
+      </div>`;
+    }).join('');
+  }catch(e){toast('Erro: '+e.message,'err');}
+}
+
+async function salvaFiltro(org,whId){
+  const filtro={};
+  document.querySelectorAll(`input[type=checkbox][data-wh="${whId}"]`).forEach(cb=>{
+    const m=cb.dataset.m,d=cb.dataset.d;
+    filtro[m]=filtro[m]||{}; filtro[m][d]=cb.checked;
+  });
+  try{
+    await api('PUT',`/organizacoes/${org}/webhooks/${whId}/filtro`,{filtro});
+    toast('Travas de envio salvas');
+  }catch(e){toast('Erro: '+e.message,'err');}
+}
+
+const R={empresas:renderEmpresas,certificado:renderCertificado,distribuicao:renderDistribuicao,documentos:renderDocumentos,integracao:renderIntegracao,saude:renderSaude};
 
 function toggleTheme() {
   const cur = document.documentElement.getAttribute('data-theme') || 'dark';

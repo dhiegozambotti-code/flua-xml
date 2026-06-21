@@ -1143,6 +1143,7 @@ async function verDetalhes(json){
   const reais=v=>v?'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—';
   const dt=v=>v?new Date(v).toLocaleString('pt-BR'):'—';
   const xmlUrl=`${BASE}/empresas/${S.id}/documentos/${x.id}/xml`;
+  const pdfUrl=`${BASE}/empresas/${S.id}/documentos/${x.id}/pdf`;
   const F=(l,v)=>`<div><div class="mdl-f-lbl">${l}</div><div class="mdl-f-val">${v||'—'}</div></div>`;
   document.getElementById('modal-root').innerHTML=`
   <div class="mdl-bg" onclick="if(event.target===this)fecharModal()">
@@ -1164,9 +1165,11 @@ async function verDetalhes(json){
         <div class="mdl-xml" id="mdl-xml-box">Carregando XML…</div>
       </div>
       <div class="mdl-foot">
+        ${(x.tem_xml||x.storage_key)&&x.tipo==='completo'?`
+          <a class="btn btn-teal btn-sm" href="${pdfUrl}?inline=1" target="_blank" style="text-decoration:none">📄 Ver PDF</a>`:''}
         ${(x.tem_xml||x.storage_key)?`
-          <a class="btn btn-ghost btn-sm" href="${xmlUrl}?inline=1" target="_blank" style="text-decoration:none">↗ Abrir em nova aba</a>
-          <a class="btn btn-teal btn-sm" href="${xmlUrl}" style="text-decoration:none">⬇ Baixar XML</a>`:''}
+          <a class="btn btn-ghost btn-sm" href="${xmlUrl}?inline=1" target="_blank" style="text-decoration:none">↗ Abrir XML</a>
+          <a class="btn btn-ghost btn-sm" href="${xmlUrl}" style="text-decoration:none">⬇ Baixar XML</a>`:''}
         <button class="btn btn-ghost btn-sm" onclick="fecharModal()">Fechar</button>
       </div>
     </div>

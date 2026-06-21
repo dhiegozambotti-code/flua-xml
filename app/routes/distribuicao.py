@@ -426,6 +426,37 @@ def download_xml_por_id(
     )
 
 
+@router.get("/empresas/{empresa_id}/documentos/{doc_id}/pdf")
+def gerar_pdf_documento(
+    empresa_id: str,
+    doc_id: str,
+    inline: bool = Query(True, description="true = abre no navegador; false = baixa"),
+    db: Session = Depends(get_db),
+):
+    """Gera o documento auxiliar em PDF (DANFE/DACTE/DAMDFE/DANFSE) do XML."""
+    doc = db.get(Documento, doc_id)
+    if not doc or doc.empresa_id != empresa_id:
+        raise HTTPException(404, "Documento não encontrado")
+    from app.services.pdf import gerar_pdf
+    try:
+        pdf_bytes = gerar_pdf(doc)
+    except FileNotFoundError:
+        raise HTTPException(404, "XML não disponível para gerar o PDF")
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))
+    except Exception as exc:
+        logger = __import__("logging").getLogger(__name__)
+        logger.exception("Falha ao gerar PDF do doc %s", doc_id)
+        raise HTTPException(500, f"Falha ao gerar PDF: {exc}")
+    filename = f"{doc.chave or doc_id}.pdf"
+    disp = "inline" if inline else "attachment"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'{disp}; filename="{filename}"'},
+    )
+
+
 @router.get("/documentos/chave/{chave}/xml")
 def download_xml_por_chave(chave: str, db: Session = Depends(get_db)):
     """Retorna o XML bruto buscando pela chave do documento."""

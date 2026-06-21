@@ -97,6 +97,11 @@ class Documento(Base):
     # Direção do documento em relação à empresa (CNPJ): entrada (recebida) |
     # saida (emitida pela própria empresa) | desconhecida.
     direcao: Mapped[str] = mapped_column(String(12), nullable=False, default="entrada")
+    # Razão social do destinatário/tomador (NF-e dest; NFS-e tomador do serviço)
+    dest_razao_social: Mapped[Optional[str]] = mapped_column(Text)
+    # Status de integração com o ERP
+    enviado_erp_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    importado_erp_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     valor_total: Mapped[Optional[float]] = mapped_column(Numeric(15, 2))
     dh_emissao: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), index=True)
     situacao: Mapped[Optional[str]] = mapped_column(String(20))  # autorizada | cancelada | denegada
@@ -144,6 +149,53 @@ class Documento(Base):
     mdfe_qtd_nfe: Mapped[Optional[int]] = mapped_column(Integer)
 
     empresa: Mapped["Empresa"] = relationship(back_populates="documentos")
+
+    # --- Campos derivados (para listagem/regra de importação no ERP) ---
+    def _itens(self) -> list:
+        if not self.itens_json:
+            return []
+        try:
+            import json as _json
+            return _json.loads(self.itens_json) or []
+        except Exception:
+            return []
+
+    @property
+    def cfop(self) -> Optional[str]:
+        """CFOPs distintos dos itens (NF-e), em ordem. Ex: '5102, 6108'."""
+        vals = []
+        for it in self._itens():
+            c = it.get("cfop")
+            if c and c not in vals:
+                vals.append(c)
+        return ", ".join(vals) or None
+
+    @property
+    def cod_servico(self) -> Optional[str]:
+        """Código de serviço (NFS-e): cTribNac/cTribMun do primeiro item."""
+        for it in self._itens():
+            c = it.get("cod_trib_nac") or it.get("cod_trib_mun")
+            if c:
+                return c
+        return None
+
+    @property
+    def desc_servico(self) -> Optional[str]:
+        """Descrição/discriminação do serviço (NFS-e)."""
+        for it in self._itens():
+            d = it.get("descricao")
+            if d:
+                return d
+        return None
+
+    @property
+    def status_erp(self) -> str:
+        """importado (confirmado) | enviado (ERP 2xx) | pendente."""
+        if self.importado_erp_em:
+            return "importado"
+        if self.enviado_erp_em:
+            return "enviado"
+        return "pendente"
 
     @property
     def tem_xml(self) -> bool:

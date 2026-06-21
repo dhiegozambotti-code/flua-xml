@@ -156,6 +156,7 @@ def _store_doc(db: Session, empresa_id: str, modelo: str, nsu: int, parsed: dict
         chave=chave or None,
         emit_cnpj=parsed.get("emit_cnpj"),
         dest_cnpj=parsed.get("dest_cnpj"),
+        dest_razao_social=parsed.get("dest_razao_social"),
         direcao=direcao,
         valor_total=valor,
         dh_emissao=dh,

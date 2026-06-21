@@ -1105,20 +1105,28 @@ async function loadDocs() {
     const sb=s=>{if(!s)return'';const m={autorizada:'b-teal',cancelada:'b-red',denegada:'b-red',evento:'b-blue',desconhecida:'b-gray'};return`<span class="badge ${m[s]||'b-gray'}">${s}</span>`;};
     const dt=v=>v?new Date(v).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'—';
     const dd=v=>v?new Date(v).toLocaleDateString('pt-BR'):'—';
+    const erpBadge=s=>{const m={importado:['b-teal','Importado'],enviado:['b-blue','Enviado'],pendente:['b-amber','Pendente']};const[c,t]=m[s]||m.pendente;return`<span class="badge ${c}">${t}</span>`;};
+    const fiscalCell=x=>{
+      if(x.modelo==='nfse'){
+        const cod=x.cod_servico?`<span class="mono">${x.cod_servico}</span>`:'';
+        const ds=x.desc_servico?`<div style="color:var(--text2);font-size:11px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${x.desc_servico}">${x.desc_servico}</div>`:'';
+        return (cod||ds)?cod+ds:'—';
+      }
+      return x.cfop?`<span class="mono">${x.cfop}</span>`:'—';
+    };
     el.innerHTML=`<div class="tbl-wrap"><table>
-      <thead><tr><th>Tipo</th><th>Direção</th><th>Nº</th><th>Rz. Emit.</th><th>CNPJ Emit.</th><th>Emissão</th><th>CNPJ Dest.</th><th>Situação</th><th style="text-align:right">Valor</th><th>Capturado</th><th>Chave</th><th></th></tr></thead>
+      <thead><tr><th>Tipo</th><th>Direção</th><th>Nº</th><th>Emitente</th><th>Dest./Tomador</th><th>CFOP / Serviço</th><th>Emissão</th><th style="text-align:right">Valor</th><th>Situação</th><th>Status ERP</th><th></th></tr></thead>
       <tbody>${d.map(x=>`<tr>
         <td><span class="badge b-blue">${x.modelo}</span> <span class="badge b-gray">${x.tipo}</span></td>
         <td>${x.direcao==='saida'?'<span class="badge b-amber">saída</span>':x.direcao==='entrada'?'<span class="badge b-teal">entrada</span>':'—'}</td>
         <td class="mono">${x.numero||'—'}${x.serie?'<span style="color:var(--text2)">/'+x.serie+'</span>':''}</td>
-        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${x.emit_razao_social||''}">${x.emit_razao_social||'—'}</td>
-        <td class="mono">${x.emit_cnpj||'—'}</td>
+        <td style="max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${x.emit_razao_social||''} ${x.emit_cnpj||''}">${x.emit_razao_social||'—'}<div class="mono" style="color:var(--text2);font-size:11px">${x.emit_cnpj||''}</div></td>
+        <td style="max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${x.dest_razao_social||''} ${x.dest_cnpj||''}">${x.dest_razao_social||'—'}<div class="mono" style="color:var(--text2);font-size:11px">${x.dest_cnpj||''}</div></td>
+        <td>${fiscalCell(x)}</td>
         <td style="color:var(--text2)">${dd(x.dh_emissao)}</td>
-        <td class="mono">${x.dest_cnpj||'—'}</td>
-        <td>${sb(x.situacao)||'—'}</td>
         <td class="mono" style="text-align:right">${x.valor_total?'R$ '+Number(x.valor_total).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—'}</td>
-        <td style="color:var(--text2);font-size:11px">${dt(x.capturado_em)}</td>
-        <td class="mono" style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${x.chave||''}">${x.chave?x.chave.slice(0,18)+'…':'—'}</td>
+        <td>${sb(x.situacao)||'—'}</td>
+        <td>${erpBadge(x.status_erp)}</td>
         <td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick='verDetalhes(${JSON.stringify(JSON.stringify(x))})'>👁 Detalhes</button></td>
       </tr>`).join('')}</tbody>
     </table></div>`;
@@ -1158,9 +1166,11 @@ async function verDetalhes(json){
       <div class="mdl-body">
         <div class="mdl-grid">
           ${F('Direção',x.direcao==='saida'?'Saída (emitida)':x.direcao==='entrada'?'Entrada (recebida)':'—')}${F('Situação',x.situacao)}
-          ${F('Número/Série',(x.numero||'—')+(x.serie?' / '+x.serie:''))}
-          ${F('Emitente',x.emit_razao_social)}${F('CNPJ Emitente',x.emit_cnpj)}
-          ${F('CNPJ Destinatário',x.dest_cnpj)}${F('Valor Total',reais(x.valor_total))}
+          ${F('Status ERP',x.status_erp==='importado'?'Importado':x.status_erp==='enviado'?'Enviado':'Pendente de importar')}${F('Número/Série',(x.numero||'—')+(x.serie?' / '+x.serie:''))}
+          ${F((x.modelo==='nfse'?'Prestador':'Emitente'),x.emit_razao_social)}${F('CNPJ Emitente',x.emit_cnpj)}
+          ${F((x.modelo==='nfse'?'Tomador':'Destinatário'),x.dest_razao_social)}${F('CNPJ Dest./Tomador',x.dest_cnpj)}
+          ${x.modelo==='nfse'?F('Código de Serviço',x.cod_servico)+F('Descrição do Serviço',x.desc_servico):F('CFOP',x.cfop)+F('Valor Total',reais(x.valor_total))}
+          ${x.modelo==='nfse'?F('Valor Total',reais(x.valor_total)):''}
           ${F('Emissão',x.dh_emissao?new Date(x.dh_emissao).toLocaleDateString('pt-BR'):'—')}${F('Capturado em',dt(x.capturado_em))}
           ${F('NSU',x.nsu)}${F('Chave',`<span class="mono">${x.chave||'—'}</span>`)}
         </div>

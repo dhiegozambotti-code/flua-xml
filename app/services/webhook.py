@@ -37,7 +37,25 @@ def _sign_payload(body: bytes, secret: str) -> str:
     return f"sha256={sig}"
 
 
-def _dispatch_one(url: str, payload: Dict[str, Any], secret: Optional[str] = None) -> None:
+def _marcar_enviado(doc_id: str) -> None:
+    """Marca enviado_erp_em no documento (chamado de thread → sessão própria)."""
+    from datetime import datetime, timezone
+    from app.db import SessionLocal
+    from app.models import Documento
+    db = SessionLocal()
+    try:
+        doc = db.get(Documento, doc_id)
+        if doc and not doc.enviado_erp_em:
+            doc.enviado_erp_em = datetime.now(timezone.utc)
+            db.commit()
+    except Exception:
+        logger.exception("Falha ao marcar enviado_erp_em doc=%s", doc_id)
+    finally:
+        db.close()
+
+
+def _dispatch_one(url: str, payload: Dict[str, Any], secret: Optional[str] = None,
+                  doc_id: Optional[str] = None) -> None:
     body = json.dumps(payload, default=str).encode()
     headers: Dict[str, str] = {"Content-Type": "application/json"}
     if secret:
@@ -47,8 +65,12 @@ def _dispatch_one(url: str, payload: Dict[str, Any], secret: Optional[str] = Non
         try:
             with httpx.Client(timeout=_TIMEOUT) as client:
                 resp = client.post(url, content=body, headers=headers)
+            if 200 <= resp.status_code < 300:
+                if doc_id:
+                    _marcar_enviado(doc_id)
+                return  # ERP aceitou (2xx)
             if resp.status_code < 500:
-                return  # sucesso ou erro do cliente (não retentar 4xx)
+                return  # erro do cliente (não retentar 4xx)
             logger.warning("Webhook %s retornou %s (tentativa %d)", url, resp.status_code, attempt + 1)
         except Exception as exc:
             logger.warning("Webhook %s erro (tentativa %d): %s", url, attempt + 1, exc)
@@ -78,12 +100,12 @@ def _envio_habilitado(cfg: WebhookConfig, modelo: str, direcao: str) -> bool:
     return bool(filtro.get(modelo or "", {}).get(direcao or "", False))
 
 
-def _fire(configs: List[WebhookConfig], payload: Dict[str, Any]) -> None:
+def _fire(configs: List[WebhookConfig], payload: Dict[str, Any], doc_id: Optional[str] = None) -> None:
     """Dispara para cada config em thread daemon independente."""
     for cfg in configs:
         t = threading.Thread(
             target=_dispatch_one,
-            args=(cfg.url, payload, cfg.secret),
+            args=(cfg.url, payload, cfg.secret, doc_id),
             daemon=True,
         )
         t.start()
@@ -126,8 +148,9 @@ def evento_documento_capturado(
             "emit_xmun": doc.emit_xmun,
             "emit_uf": doc.emit_uf,
             "emit_cep": doc.emit_cep,
-            # Destinatário
+            # Destinatário / Tomador (NFS-e)
             "dest_cnpj": doc.dest_cnpj,
+            "dest_razao_social": getattr(doc, "dest_razao_social", None),
             # Número/série
             "numero": doc.numero,
             "serie": doc.serie,
@@ -145,7 +168,7 @@ def evento_documento_capturado(
             "duplicatas": _json.loads(doc.duplicatas_json) if doc.duplicatas_json else [],
         },
     }
-    _fire(configs, payload)
+    _fire(configs, payload, doc_id=doc.id)
 
 
 def evento_certificado_expirando(

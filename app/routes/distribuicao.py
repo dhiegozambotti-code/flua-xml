@@ -57,11 +57,17 @@ class DocumentoOut(BaseModel):
     emit_cnpj: Optional[str]
     emit_razao_social: Optional[str] = None
     dest_cnpj: Optional[str]
+    dest_razao_social: Optional[str] = None
     valor_total: Optional[float]
     dh_emissao: Optional[datetime]
     situacao: Optional[str]
     storage_key: Optional[str]
     tem_xml: bool = False
+    # Derivados p/ regra de importação no ERP
+    cfop: Optional[str] = None            # NF-e: CFOPs distintos
+    cod_servico: Optional[str] = None     # NFS-e: código de serviço
+    desc_servico: Optional[str] = None    # NFS-e: descrição do serviço
+    status_erp: str = "pendente"          # importado | enviado | pendente
     sha256: Optional[str]
     capturado_em: datetime
     # CT-e
@@ -400,6 +406,19 @@ def buscar_documento(empresa_id: str, doc_id: str, db: Session = Depends(get_db)
     if not doc or doc.empresa_id != empresa_id:
         raise HTTPException(404, "Documento não encontrado")
     return doc
+
+
+@router.post("/documentos/{doc_id}/confirmar-importacao")
+def confirmar_importacao(doc_id: str, db: Session = Depends(get_db)):
+    """Callback do ERP: marca o documento como importado (importado_erp_em)."""
+    from datetime import datetime, timezone
+    doc = db.get(Documento, doc_id)
+    if not doc:
+        raise HTTPException(404, "Documento não encontrado")
+    if not doc.importado_erp_em:
+        doc.importado_erp_em = datetime.now(timezone.utc)
+        db.commit()
+    return {"status": "ok", "status_erp": doc.status_erp}
 
 
 @router.get("/empresas/{empresa_id}/documentos/{doc_id}/xml")

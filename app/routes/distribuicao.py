@@ -330,6 +330,20 @@ def listar_documentos(
     return q.order_by(Documento.capturado_em.desc()).offset(offset).limit(limit).all()
 
 
+@router.delete("/empresas/{empresa_id}/documentos")
+def deletar_documentos(
+    empresa_id: str,
+    modelo: str = Query(..., description="Modelo obrigatório (nfe/nfce/cte/mdfe/nfse) — evita wipe acidental"),
+    db: Session = Depends(get_db),
+):
+    """Remove documentos de um modelo (ex: limpar captura feita com cert errado)."""
+    if not db.get(Empresa, empresa_id):
+        raise HTTPException(404, "Empresa não encontrada")
+    n = db.query(Documento).filter_by(empresa_id=empresa_id, modelo=modelo).delete()
+    db.commit()
+    return {"deletados": n, "modelo": modelo}
+
+
 @router.post("/empresas/{empresa_id}/documentos/consultar-chave")
 def consultar_por_chave(empresa_id: str, chave: str, db: Session = Depends(get_db)):
     """Captura uma NF-e por chave (consChNFe) — funciona inclusive para saídas próprias."""

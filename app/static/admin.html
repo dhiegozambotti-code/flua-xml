@@ -1246,9 +1246,9 @@ async function renderIntegracao() {
   try{
     const emp=await api('GET',`/empresas/${S.id}`);
     const org=emp.organizacao_id;
-    const whs=await api('GET',`/organizacoes/${org}/webhooks`);
+    const whs=(await api('GET',`/organizacoes/${org}/webhooks`)).filter(w=>w.ativo);
     const cnt=document.getElementById('int-cnt');
-    if(!whs.length){cnt.innerHTML=`<div class="card"><div class="empty"><div class="empty-ico">🔌</div><div class="empty-txt">Nenhum webhook configurado para esta organização</div><div style="font-size:12px;color:var(--text3);margin-top:8px">Org: ${org}</div></div></div>`;return;}
+    if(!whs.length){cnt.innerHTML=`<div class="card"><div class="empty"><div class="empty-ico">🔌</div><div class="empty-txt">Nenhum webhook ativo para esta organização</div><div style="font-size:12px;color:var(--text3);margin-top:8px">Org: ${org}</div></div></div>`;return;}
     cnt.innerHTML=whs.map(wh=>{
       let filtro={}; try{filtro=JSON.parse(wh.filtro_envio||'{}')}catch(e){}
       const cell=(m,d)=>{

@@ -195,6 +195,10 @@ class WebhookConfig(Base):
         default="documento.capturado,empresa.bloqueada_656",
     )
     ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Trava de envio ao ERP por modelo×direção (JSON):
+    # {"nfe":{"entrada":true,"saida":false}, "nfse":{...}, ...}
+    # Default seguro: ausente/None => NÃO envia (rollout liga tipo por tipo).
+    filtro_envio: Mapped[Optional[str]] = mapped_column(Text)
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

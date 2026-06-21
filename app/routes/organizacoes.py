@@ -44,9 +44,15 @@ class WebhookOut(BaseModel):
     url: str
     eventos: str
     ativo: bool
+    filtro_envio: Optional[str] = None
     criado_em: datetime
 
     model_config = {"from_attributes": True}
+
+
+class FiltroEnvioIn(BaseModel):
+    # {"nfe":{"entrada":true,"saida":false}, "nfse":{...}, ...}
+    filtro: dict
 
 
 # ---- API keys ---------------------------------------------------------------
@@ -104,3 +110,16 @@ def remover_webhook(org_id: str, wh_id: str, db: Session = Depends(get_db)):
         raise HTTPException(404, "Webhook não encontrado")
     wh.ativo = False
     db.commit()
+
+
+@router.put("/{org_id}/webhooks/{wh_id}/filtro", response_model=WebhookOut)
+def atualizar_filtro_envio(org_id: str, wh_id: str, body: FiltroEnvioIn, db: Session = Depends(get_db)):
+    """Define a trava de envio ao ERP por modelo×direção (rollout controlado)."""
+    import json as _json
+    wh = db.get(WebhookConfig, wh_id)
+    if not wh or wh.organizacao_id != org_id:
+        raise HTTPException(404, "Webhook não encontrado")
+    wh.filtro_envio = _json.dumps(body.filtro)
+    db.commit()
+    db.refresh(wh)
+    return wh

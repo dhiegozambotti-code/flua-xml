@@ -65,6 +65,19 @@ def _load_configs(db: Session, organizacao_id: str, evento: str) -> List[Webhook
     return [c for c in configs if evento in (c.eventos or "").split(",")]
 
 
+def _envio_habilitado(cfg: WebhookConfig, modelo: str, direcao: str) -> bool:
+    """Trava por modelo×direção. Default seguro: sem filtro => NÃO envia."""
+    import json as _json
+    raw = getattr(cfg, "filtro_envio", None)
+    if not raw:
+        return False
+    try:
+        filtro = _json.loads(raw)
+    except Exception:
+        return False
+    return bool(filtro.get(modelo or "", {}).get(direcao or "", False))
+
+
 def _fire(configs: List[WebhookConfig], payload: Dict[str, Any]) -> None:
     """Dispara para cada config em thread daemon independente."""
     for cfg in configs:
@@ -84,6 +97,9 @@ def evento_documento_capturado(
 ) -> None:
     """Dispara evento documento.capturado com payload enriquecido."""
     configs = _load_configs(db, organizacao_id, "documento.capturado")
+    # Trava de envio ao ERP por modelo×direção (rollout controlado)
+    direcao = getattr(doc, "direcao", "entrada")
+    configs = [c for c in configs if _envio_habilitado(c, doc.modelo, direcao)]
     if not configs:
         return
 

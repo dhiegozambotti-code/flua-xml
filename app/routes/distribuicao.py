@@ -408,6 +408,40 @@ def buscar_documento(empresa_id: str, doc_id: str, db: Session = Depends(get_db)
     return doc
 
 
+@router.post("/empresas/{empresa_id}/documentos/reparse")
+def reparse_documentos(
+    empresa_id: str,
+    modelo: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """Reprocessa o XML armazenado e preenche campos novos (ex: dest_razao_social)
+    nos documentos já capturados. Não altera dados de captura/NSU."""
+    import base64
+    import gzip as _gzip
+    from app.services.parser import parse_doczip
+    from app.services.storage import load_xml_doc
+    q = db.query(Documento).filter_by(empresa_id=empresa_id, tipo="completo")
+    if modelo:
+        q = q.filter_by(modelo=modelo)
+    atualizados = 0
+    for doc in q.all():
+        try:
+            xml = load_xml_doc(doc)
+        except Exception:
+            continue
+        try:
+            b64 = base64.b64encode(_gzip.compress(xml)).decode()
+            parsed = parse_doczip(doc.schema_xsd or doc.modelo, b64)
+        except Exception:
+            continue
+        dest_rz = parsed.get("dest_razao_social")
+        if dest_rz and dest_rz != doc.dest_razao_social:
+            doc.dest_razao_social = dest_rz
+            atualizados += 1
+    db.commit()
+    return {"atualizados": atualizados}
+
+
 @router.post("/documentos/{doc_id}/confirmar-importacao")
 def confirmar_importacao(doc_id: str, db: Session = Depends(get_db)):
     """Callback do ERP: marca o documento como importado (importado_erp_em)."""

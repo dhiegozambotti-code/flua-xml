@@ -408,6 +408,46 @@ def buscar_documento(empresa_id: str, doc_id: str, db: Session = Depends(get_db)
     return doc
 
 
+@router.post("/empresas/{empresa_id}/eventos/reprocessar-cancelamentos")
+def reprocessar_cancelamentos(empresa_id: str, db: Session = Depends(get_db)):
+    """Reprocessa eventos já capturados e aplica cancelamento às notas originais
+    (corrige notas que ficaram 'autorizada' apesar do evento de cancelamento)."""
+    import base64
+    import gzip as _gzip
+    from dateutil import parser as _dparse
+    from app.services.parser import parse_doczip
+    from app.services.storage import load_xml_doc
+    from app.services.orquestrador import _aplicar_cancelamento
+
+    eventos = db.query(Documento).filter_by(empresa_id=empresa_id, tipo="evento").all()
+    canceladas = 0
+    for ev in eventos:
+        try:
+            xml = load_xml_doc(ev)
+            b64 = base64.b64encode(_gzip.compress(xml)).decode()
+            parsed = parse_doczip(ev.schema_xsd or ev.modelo, b64)
+        except Exception:
+            continue
+        cod = parsed.get("tipo_evento")
+        if cod and ev.tipo_evento != cod:
+            ev.tipo_evento = cod
+        ch = parsed.get("chave") or ev.chave
+        dh = None
+        if parsed.get("dh_emissao"):
+            try:
+                dh = _dparse.parse(parsed["dh_emissao"])
+            except Exception:
+                pass
+        antes = db.query(Documento).filter_by(empresa_id=empresa_id, chave=ch).filter(
+            Documento.tipo != "evento", Documento.situacao == "cancelada").count()
+        _aplicar_cancelamento(db, empresa_id, ch, cod, dh)
+        depois = db.query(Documento).filter_by(empresa_id=empresa_id, chave=ch).filter(
+            Documento.tipo != "evento", Documento.situacao == "cancelada").count()
+        canceladas += max(0, depois - antes)
+    db.commit()
+    return {"eventos_processados": len(eventos), "notas_canceladas": canceladas}
+
+
 @router.post("/empresas/{empresa_id}/documentos/reparse")
 def reparse_documentos(
     empresa_id: str,

@@ -20,6 +20,30 @@ def doczip(xml_str, schema):
     return parse_doczip(schema, build_doczip(xml_str))
 
 
+# ---- NFS-e evento de cancelamento (101101) ----------------------------------
+
+EVENTO_CANC_NFSE_XML = """<?xml version="1.0" encoding="utf-8"?>
+<evento versao="1.01" xmlns="http://www.sped.fazenda.gov.br/nfse">
+<infEvento Id="EVT35503081261990572000150000000000000426068815316479101101001">
+<nDFSe>4</nDFSe><dhProc>2026-06-01T00:00:00-03:00</dhProc>
+<pedRegEvento versao="1.01"><infPedReg Id="PRE101101">
+<dhEvento>2026-06-01T00:00:00-03:00</dhEvento>
+<chNFSe>35503081261990572000150000000000000426068815316479</chNFSe>
+<e101101><xDesc>Cancelamento de NFS-e</xDesc><cMotivo>9</cMotivo></e101101>
+</infPedReg></pedRegEvento></infEvento></evento>"""
+
+
+class TestEventoCancelamentoNfse:
+    def test_tipo_evento_cancelamento(self):
+        r = doczip(EVENTO_CANC_NFSE_XML, "eventonfse")
+        assert r["tipo"] == "evento"
+        assert r["tipo_evento"] == "101101"
+
+    def test_chave_referenciada(self):
+        r = doczip(EVENTO_CANC_NFSE_XML, "eventonfse")
+        assert r["chave"] == "35503081261990572000150000000000000426068815316479"
+
+
 # ---- NFS-e Nacional (ADN) ---------------------------------------------------
 
 class TestNfseNacional:

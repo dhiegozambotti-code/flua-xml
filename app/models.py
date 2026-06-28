@@ -102,6 +102,10 @@ class Documento(Base):
     # Status de integração com o ERP
     enviado_erp_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     importado_erp_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    # Eventos: código (ex: 101101=cancelamento NFS-e, 110111=cancelamento NF-e)
+    tipo_evento: Mapped[Optional[str]] = mapped_column(String(10))
+    # Data de cancelamento (preenchida na NOTA quando um evento de cancelamento é vinculado)
+    cancelado_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     valor_total: Mapped[Optional[float]] = mapped_column(Numeric(15, 2))
     dh_emissao: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), index=True)
     situacao: Mapped[Optional[str]] = mapped_column(String(20))  # autorizada | cancelada | denegada

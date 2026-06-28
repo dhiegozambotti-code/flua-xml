@@ -161,6 +161,7 @@ def _store_doc(db: Session, empresa_id: str, modelo: str, nsu: int, parsed: dict
         valor_total=valor,
         dh_emissao=dh,
         situacao=parsed.get("situacao"),
+        tipo_evento=parsed.get("tipo_evento"),
         storage_key=storage_key,
         xml_gz=xml_gz,
         sha256=parsed.get("sha256"),
@@ -203,7 +204,39 @@ def _store_doc(db: Session, empresa_id: str, modelo: str, nsu: int, parsed: dict
     )
     db.add(doc)
     db.commit()
+
+    # Evento de cancelamento → marca a nota original (mesma empresa+chave) como cancelada
+    if parsed.get("tipo") == "evento" and chave:
+        _aplicar_cancelamento(db, empresa_id, chave, parsed.get("tipo_evento"), dh)
+
     return doc
+
+
+# Códigos de evento que cancelam o documento: NFS-e nacional (101101),
+# NF-e/NFC-e (110111 cancelamento, 110112 cancelamento por substituição)
+_COD_CANCELAMENTO = {"101101", "110111", "110112"}
+
+
+def _aplicar_cancelamento(db: Session, empresa_id: str, chave: str,
+                          tipo_evento: Optional[str], dh) -> None:
+    """Se o evento for de cancelamento, marca a(s) nota(s) original(is) como cancelada."""
+    if tipo_evento not in _COD_CANCELAMENTO:
+        return
+    notas = (
+        db.query(Documento)
+        .filter_by(empresa_id=empresa_id, chave=chave)
+        .filter(Documento.tipo != "evento")
+        .all()
+    )
+    n = 0
+    for nota in notas:
+        if nota.situacao != "cancelada":
+            nota.situacao = "cancelada"
+            nota.cancelado_em = dh
+            n += 1
+    if n:
+        db.commit()
+        logger.info("Cancelamento aplicado: chave=%s notas=%s (evento %s)", chave, n, tipo_evento)
 
 
 def _auto_manifestar(db: Session, empresa_id: str, empresa_cnpj: str, parsed: dict):

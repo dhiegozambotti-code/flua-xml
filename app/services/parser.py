@@ -450,12 +450,34 @@ def _parse_nfse(root: Any) -> Dict[str, Any]:
 
 
 def _parse_evento_nfse(root: Any) -> Dict[str, Any]:
-    """Evento de NFS-e (cancelamento/substituição) — Padrão Nacional."""
+    """Evento de NFS-e (cancelamento/substituição) — Padrão Nacional.
+
+    O Padrão Nacional usa o nome do elemento como código do evento
+    (ex: <e101101> = Cancelamento de NFS-e), não uma tag tpEvento/cEvento.
+    """
     inf = _find_local(root, "infPedReg", "infEvento")
     if inf is None:
         inf = root
     ch = _txt_local(root, "chNFSe") or (inf.get("Id") if inf is not None else None)
     chave = "".join(c for c in ch if c.isdigit()) or None if ch else None
+
+    # Código do evento: filho de infPedReg no formato e<6 dígitos> (ex: e101101)
+    cod = None
+    ped = _find_local(root, "infPedReg")
+    if ped is not None:
+        for child in ped:
+            local = etree.QName(child).localname
+            if len(local) == 7 and local[0] == "e" and local[1:].isdigit():
+                cod = local[1:]
+                break
+    if not cod:
+        cod = _txt_local(root, "tpEvento", "cEvento")
+    # fallback pelo Id (EVT...101101...) se ainda não achou
+    if not cod:
+        idv = inf.get("Id") if inf is not None else None
+        if idv and "101101" in idv:
+            cod = "101101"
+
     return {
         "chave": chave,
         "emit_cnpj": _txt_local(root, "CNPJ", "CPF"),
@@ -463,7 +485,7 @@ def _parse_evento_nfse(root: Any) -> Dict[str, Any]:
         "valor_total": None,
         "dh_emissao": _txt_local(root, "dhEvento", "dhProc"),
         "situacao": "evento",
-        "tipo_evento": _txt_local(root, "tpEvento", "cEvento"),
+        "tipo_evento": cod,
         "modelo_doc": "nfse",
     }
 

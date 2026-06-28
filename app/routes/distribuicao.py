@@ -61,6 +61,8 @@ class DocumentoOut(BaseModel):
     valor_total: Optional[float]
     dh_emissao: Optional[datetime]
     situacao: Optional[str]
+    tipo_evento: Optional[str] = None
+    cancelado_em: Optional[datetime] = None
     storage_key: Optional[str]
     tem_xml: bool = False
     # Derivados p/ regra de importação no ERP

@@ -338,6 +338,34 @@ def listar_documentos(
     return q.order_by(Documento.capturado_em.desc()).offset(offset).limit(limit).all()
 
 
+@router.get("/empresas/{empresa_id}/documentos/para-erp")
+def documentos_para_erp(
+    empresa_id: str,
+    de: Optional[datetime] = Query(default=None, description="Data emissão inicial (ISO8601)"),
+    ate: Optional[datetime] = Query(default=None, description="Data emissão final (ISO8601)"),
+    direcao: Optional[str] = Query(default="entrada", description="entrada | saida | (vazio=todas)"),
+    modelo: Optional[str] = Query(default=None),
+    limit: int = Query(2000, le=5000),
+    db: Session = Depends(get_db),
+):
+    """Lista documentos completos do período no MESMO formato do webhook
+    (com itens/duplicatas), para importação sob demanda pelo ERP."""
+    if not db.get(Empresa, empresa_id):
+        raise HTTPException(404, "Empresa não encontrada")
+    from app.services.webhook import montar_dados_documento
+    q = db.query(Documento).filter_by(empresa_id=empresa_id, tipo="completo")
+    if direcao:
+        q = q.filter(Documento.direcao == direcao)
+    if modelo:
+        q = q.filter_by(modelo=modelo)
+    if de:
+        q = q.filter(Documento.dh_emissao >= de)
+    if ate:
+        q = q.filter(Documento.dh_emissao <= ate)
+    docs = q.order_by(Documento.dh_emissao.desc()).limit(limit).all()
+    return {"total": len(docs), "documentos": [montar_dados_documento(empresa_id, d) for d in docs]}
+
+
 @router.delete("/empresas/{empresa_id}/documentos")
 def deletar_documentos(
     empresa_id: str,

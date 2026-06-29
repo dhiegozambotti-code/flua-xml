@@ -111,6 +111,51 @@ def _fire(configs: List[WebhookConfig], payload: Dict[str, Any], doc_id: Optiona
         t.start()
 
 
+def montar_dados_documento(empresa_id: str, doc: "Documento") -> Dict[str, Any]:
+    """Monta o dict `data` do documento (mesmo formato do webhook).
+
+    Reutilizado pelo webhook e pelo endpoint de importação sob demanda (ERP).
+    """
+    import json as _json
+    return {
+        "empresa_id": empresa_id,
+        "documento_id": doc.id,
+        "modelo": doc.modelo,
+        "tipo": doc.tipo,
+        "direcao": getattr(doc, "direcao", "entrada"),  # entrada | saida
+        "chave": doc.chave,
+        "situacao": doc.situacao,
+        "valor_total": float(doc.valor_total) if doc.valor_total is not None else None,
+        "dh_emissao": doc.dh_emissao.isoformat() if doc.dh_emissao else None,
+        # Emitente / Prestador
+        "emit_cnpj": doc.emit_cnpj,
+        "emit_razao_social": doc.emit_razao_social,
+        "emit_ie": doc.emit_ie,
+        "emit_xlogradouro": doc.emit_xlogradouro,
+        "emit_xmun": doc.emit_xmun,
+        "emit_uf": doc.emit_uf,
+        "emit_cep": doc.emit_cep,
+        # Destinatário / Tomador (NFS-e)
+        "dest_cnpj": doc.dest_cnpj,
+        "dest_razao_social": getattr(doc, "dest_razao_social", None),
+        # Número/série
+        "numero": doc.numero,
+        "serie": doc.serie,
+        # Totais fiscais
+        "v_prod": float(doc.v_prod) if doc.v_prod is not None else None,
+        "v_frete": float(doc.v_frete) if doc.v_frete is not None else None,
+        "v_seg": float(doc.v_seg) if doc.v_seg is not None else None,
+        "v_desc": float(doc.v_desc) if doc.v_desc is not None else None,
+        "v_ipi": float(doc.v_ipi) if doc.v_ipi is not None else None,
+        "v_icms": float(doc.v_icms) if doc.v_icms is not None else None,
+        "v_pis": float(doc.v_pis) if doc.v_pis is not None else None,
+        "v_cofins": float(doc.v_cofins) if doc.v_cofins is not None else None,
+        # Itens e duplicatas
+        "itens": _json.loads(doc.itens_json) if doc.itens_json else [],
+        "duplicatas": _json.loads(doc.duplicatas_json) if doc.duplicatas_json else [],
+    }
+
+
 def evento_documento_capturado(
     db: Session,
     organizacao_id: str,
@@ -125,48 +170,10 @@ def evento_documento_capturado(
     if not configs:
         return
 
-    import json as _json
-
     payload = {
         "evento": "documento.capturado",
         "ocorrido_em": _now_iso(),
-        "data": {
-            "empresa_id": empresa_id,
-            "documento_id": doc.id,
-            "modelo": doc.modelo,
-            "tipo": doc.tipo,
-            "direcao": getattr(doc, "direcao", "entrada"),  # entrada | saida
-            "chave": doc.chave,
-            "situacao": doc.situacao,
-            "valor_total": float(doc.valor_total) if doc.valor_total is not None else None,
-            "dh_emissao": doc.dh_emissao.isoformat() if doc.dh_emissao else None,
-            # Emitente
-            "emit_cnpj": doc.emit_cnpj,
-            "emit_razao_social": doc.emit_razao_social,
-            "emit_ie": doc.emit_ie,
-            "emit_xlogradouro": doc.emit_xlogradouro,
-            "emit_xmun": doc.emit_xmun,
-            "emit_uf": doc.emit_uf,
-            "emit_cep": doc.emit_cep,
-            # Destinatário / Tomador (NFS-e)
-            "dest_cnpj": doc.dest_cnpj,
-            "dest_razao_social": getattr(doc, "dest_razao_social", None),
-            # Número/série
-            "numero": doc.numero,
-            "serie": doc.serie,
-            # Totais fiscais
-            "v_prod": float(doc.v_prod) if doc.v_prod is not None else None,
-            "v_frete": float(doc.v_frete) if doc.v_frete is not None else None,
-            "v_seg": float(doc.v_seg) if doc.v_seg is not None else None,
-            "v_desc": float(doc.v_desc) if doc.v_desc is not None else None,
-            "v_ipi": float(doc.v_ipi) if doc.v_ipi is not None else None,
-            "v_icms": float(doc.v_icms) if doc.v_icms is not None else None,
-            "v_pis": float(doc.v_pis) if doc.v_pis is not None else None,
-            "v_cofins": float(doc.v_cofins) if doc.v_cofins is not None else None,
-            # Itens e duplicatas
-            "itens": _json.loads(doc.itens_json) if doc.itens_json else [],
-            "duplicatas": _json.loads(doc.duplicatas_json) if doc.duplicatas_json else [],
-        },
+        "data": montar_dados_documento(empresa_id, doc),
     }
     _fire(configs, payload, doc_id=doc.id)
 

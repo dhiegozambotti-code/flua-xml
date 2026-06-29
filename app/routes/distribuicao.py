@@ -476,9 +476,16 @@ def reparse_documentos(
             parsed = parse_doczip(doc.schema_xsd or doc.modelo, b64)
         except Exception:
             continue
+        mudou = False
         dest_rz = parsed.get("dest_razao_social")
         if dest_rz and dest_rz != doc.dest_razao_social:
             doc.dest_razao_social = dest_rz
+            mudou = True
+        emit_rz = parsed.get("emit_razao_social")
+        if emit_rz and emit_rz != doc.emit_razao_social:
+            doc.emit_razao_social = emit_rz
+            mudou = True
+        if mudou:
             atualizados += 1
     db.commit()
     return {"atualizados": atualizados}

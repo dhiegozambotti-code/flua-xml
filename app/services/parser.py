@@ -409,7 +409,10 @@ def _parse_nfse(root: Any) -> Dict[str, Any]:
         digits = "".join(c for c in id_attr if c.isdigit())
         chave = digits or None
 
-    prest = _find_local(root, "prest", "emit")
+    # No Padrão Nacional, <prest> (no DPS) só tem CNPJ/IM; o nome do prestador
+    # está em <emit> (no infNFSe). CNPJ vem de qualquer um; razão social do <emit>.
+    prest = _find_local(root, "prest")
+    emit_node = _find_local(root, "emit")
     toma = _find_local(root, "toma", "tomador", "TomadorServico")
 
     def _doc(el):
@@ -435,8 +438,9 @@ def _parse_nfse(root: Any) -> Dict[str, Any]:
 
     return {
         "chave": chave,
-        "emit_cnpj": _doc(prest),
-        "emit_razao_social": _txt_local(prest, "xNome", "RazaoSocial") if prest is not None else None,
+        "emit_cnpj": _doc(prest) or _doc(emit_node),
+        "emit_razao_social": (_txt_local(emit_node, "xNome", "xFant", "RazaoSocial")
+                              or (_txt_local(prest, "xNome", "RazaoSocial") if prest is not None else None)),
         "dest_cnpj": _doc(toma),
         "dest_razao_social": _txt_local(toma, "xNome", "RazaoSocial") if toma is not None else None,
         "valor_total": valor,
